@@ -29,6 +29,7 @@ def _make_device(**kwargs) -> Device:
 async def test_on_device_created_calls_add_peer(mock_wg, mock_fw, mock_settings):
     mock_settings.return_value.wg_enabled = True
     mock_wg.add_peer = AsyncMock()
+    mock_fw.add_user_chain = AsyncMock()
     mock_fw.add_device_jump_rule = AsyncMock()
 
     device = _make_device()

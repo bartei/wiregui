@@ -12,7 +12,7 @@ from wiregui.models.connectivity_check import ConnectivityCheck
 from wiregui.services import notifications
 from wiregui.utils.time import utcnow
 
-DEFAULT_URL = "https://ping-dev.firezone.dev"
+DEFAULT_URL = "https://one.one.one.one/cdn-cgi/trace"
 DEFAULT_INTERVAL = 300  # 5 minutes
 
 

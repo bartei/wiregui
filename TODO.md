@@ -188,9 +188,68 @@ Source: `/home/stefanob/PycharmProjects/personal/wirezone`
 - [x] Loguru configured (wiregui/logging.py), no print statements
 - [x] File logging to `logs/` when `WG_LOG_TO_FILE=true`
 
-### Deployment
-- [ ] Dockerfile (multi-stage)
-- [ ] compose.prod.yml (app + postgres + valkey + caddy)
-- [ ] Health endpoint `GET /api/health`
+### Deployment ✅
+- [x] Dockerfile (multi-stage python:3.13-slim)
+- [x] compose.prod.yml (bridge networking, NET_ADMIN, nftables)
+- [x] Health endpoint `GET /api/health`
+- [x] Forgejo CI: test → semver → Docker registry push
 - [ ] First-run CLI setup command
 - [ ] README.md
+
+---
+
+## UI Polish — Account Page (`/account`)
+
+Redesign from tabbed layout to single scrollable page (matching original wirezone pattern).
+Leverage Quasar components + Tailwind utility classes for modern look.
+
+### Layout change
+- [ ] Remove tabs — render all sections stacked vertically on one page
+- [ ] Page header: "Account Settings" with subtitle description
+
+### Section 1: Account Details
+- [ ] Quasar `q-card` with clean table layout (not grid) for user info
+- [ ] Rows: Email, Role, Last Sign-in, Method, Created
+- [ ] Tailwind: rounded borders, hover states on rows, subtle dividers
+- [ ] "Edit" button to open email change dialog (future)
+
+### Section 2: Change Password
+- [ ] Separate `q-card` below details
+- [ ] Outlined inputs with proper validation feedback
+- [ ] Min 8 chars, confirmation match check shown inline
+- [ ] Success/error toast notifications
+
+### Section 3: Connected SSO Providers
+- [ ] `q-card` showing OIDC connections as a proper table
+- [ ] Columns: Provider, Last Refreshed, Status
+- [ ] "Disconnect" action per provider (future)
+- [ ] Empty state: "No SSO providers connected"
+
+### Section 4: Multi-Factor Authentication
+- [ ] `q-card` with MFA methods table
+- [ ] Columns: Name, Type, Last Used, Actions (delete)
+- [ ] Styled delete button (red outline, confirmation dialog)
+- [ ] "Add TOTP Method" and "Add Security Key" buttons below table
+- [ ] TOTP registration renders inline (QR + verify code) inside an expansion panel
+- [ ] Empty state with icon + message
+
+### Section 5: API Tokens
+- [ ] `q-card` with tokens table
+- [ ] Columns: Created, Expires, Status (chip: green "Active" / red "Expired"), Actions
+- [ ] Quasar `q-chip` for status badges
+- [ ] Create token: inline row with expiry input + button (not a dialog)
+- [ ] Token display after creation: `q-banner` with copy-to-clipboard button
+- [ ] Empty state message
+
+### Section 6: Danger Zone
+- [ ] `q-card` with red left border accent (`border-l-4 border-red-500`)
+- [ ] "Delete Your Account" button with `q-btn color=negative outline`
+- [ ] Confirmation dialog with typed email verification
+- [ ] Disabled if user is the only admin
+
+### General styling improvements
+- [ ] Consistent card spacing (`q-mt-lg` between sections)
+- [ ] Section titles: `text-h6 text-weight-medium`
+- [ ] Descriptive subtitles below each section title in `text-caption text-grey-7`
+- [ ] Responsive: max-width container centered (`max-w-3xl mx-auto`)
+- [ ] Smooth scroll between sections
