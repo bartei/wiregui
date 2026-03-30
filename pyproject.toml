@@ -1,0 +1,49 @@
+[project]
+name = "wiregui"
+version = "0.1.0"
+description = "WireGuard VPN management platform — Python/NiceGUI rewrite of Wirezone"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    # UI
+    "nicegui>=2.12",
+    # ORM & Database
+    "sqlmodel>=0.0.22",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    # Configuration
+    "pydantic-settings>=2.7",
+    # Cache
+    "redis>=5.2",
+    # Encryption
+    "cryptography>=44",
+    # Auth
+    "bcrypt>=4.0",
+    "python-jose[cryptography]>=3.3",
+    "authlib>=1.4",
+    "pyotp>=2.9",
+    "webauthn>=2.2",
+    "python3-saml>=1.16",
+    # HTTP client
+    "httpx>=0.28",
+    # Email
+    "aiosmtplib>=3.0",
+    # QR codes
+    "qrcode[pil]>=8.0",
+    # Logging
+    "loguru>=0.7.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=7.1.0",
+    "respx>=0.22.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]

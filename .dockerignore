@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.nicegui/
+logs/
+.git/
+.idea/
+.pytest_cache/
+tests/
+.forgejo/
+*.md
+compose*.yml

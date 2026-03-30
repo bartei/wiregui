@@ -1,0 +1,63 @@
+services:
+  wiregui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wiregui:latest
+    restart: unless-stopped
+    ports:
+      - "13000:13000"
+      - "51821:51821/udp"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv6.conf.all.forwarding=1
+      - net.ipv6.conf.all.disable_ipv6=0
+    environment:
+      WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui
+      WG_REDIS_URL: redis://valkey:6379/0
+      WG_SECRET_KEY: ${WG_SECRET_KEY:-change-me-in-production}
+      WG_WG_ENABLED: "true"
+      WG_WG_ENDPOINT_HOST: ${WG_ENDPOINT_HOST:-vpn.example.com}
+      WG_WG_ENDPOINT_PORT: "51821"
+      WG_HOST: "0.0.0.0"
+      WG_PORT: "13000"
+      WG_EXTERNAL_URL: ${WG_EXTERNAL_URL:-http://localhost:13000}
+      WG_ADMIN_EMAIL: ${WG_ADMIN_EMAIL:-admin@localhost}
+      WG_ADMIN_PASSWORD: ${WG_ADMIN_PASSWORD:-}
+      WG_LOG_TO_FILE: "true"
+    volumes:
+      - wiregui_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_started
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wiregui
+      POSTGRES_PASSWORD: wiregui
+      POSTGRES_DB: wiregui
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wiregui"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8
+    restart: unless-stopped
+    volumes:
+      - valkey_data:/data
+
+volumes:
+  postgres_data:
+  valkey_data:
+  wiregui_logs:
