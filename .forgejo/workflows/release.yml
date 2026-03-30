@@ -24,6 +24,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      CI: "true"
       WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui
     steps:
       - name: Install system dependencies and checkout

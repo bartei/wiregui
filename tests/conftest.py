@@ -1,8 +1,8 @@
 """Shared test fixtures — async DB session using a test database."""
 
+import os
 from collections.abc import AsyncGenerator
 
-import pytest
 import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -15,36 +15,40 @@ from wiregui.models import *  # noqa: F401, F403
 
 
 def _test_database_url() -> str:
+    """Use a separate test DB locally, but in CI just use the main DB (it's ephemeral)."""
     url = get_settings().database_url
+    if os.environ.get("CI"):
+        return url  # CI: use the service container DB directly
     base, _dbname = url.rsplit("/", 1)
     return f"{base}/wiregui_test"
 
 
 TEST_DATABASE_URL = _test_database_url()
 
-# Module-level engine creation (runs once via autouse session fixture)
-_engine = None
-
 
 def _ensure_test_db_sync():
-    """Ensure wiregui_test database exists (called once)."""
+    """Ensure test database exists. Skip in CI (uses main DB)."""
+    if os.environ.get("CI"):
+        return
+
     import asyncio
 
     async def _create():
         base_url = get_settings().database_url.rsplit("/", 1)[0] + "/postgres"
         admin_engine = create_async_engine(base_url, isolation_level="AUTOCOMMIT")
-        async with admin_engine.connect() as conn:
-            result = await conn.execute(
-                text("SELECT 1 FROM pg_database WHERE datname = 'wiregui_test'")
-            )
-            if result.scalar() is None:
-                await conn.execute(text("CREATE DATABASE wiregui_test"))
-        await admin_engine.dispose()
+        try:
+            async with admin_engine.connect() as conn:
+                result = await conn.execute(
+                    text("SELECT 1 FROM pg_database WHERE datname = 'wiregui_test'")
+                )
+                if result.scalar() is None:
+                    await conn.execute(text("CREATE DATABASE wiregui_test"))
+        finally:
+            await admin_engine.dispose()
 
     asyncio.run(_create())
 
 
-# Create test DB once at import time
 _ensure_test_db_sync()
 
 
