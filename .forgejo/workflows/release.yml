@@ -26,12 +26,12 @@ jobs:
     env:
       WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system dependencies
+      - name: Install system dependencies and checkout
         run: |
           apt-get update && apt-get install -y --no-install-recommends \
-            wireguard-tools pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl
+            git wireguard-tools pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl
+          git clone --depth=1 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
+          git checkout ${GITHUB_SHA}
 
       - name: Install uv
         run: pip install uv
