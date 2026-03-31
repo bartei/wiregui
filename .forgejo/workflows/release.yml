@@ -214,7 +214,7 @@ jobs:
             -u "${{ github.repository_owner }}" --password-stdin
 
           # Build the image
-          docker build \
+          docker build --no-cache \
             --build-arg "VERSION=${VERSION}" \
             -t "${IMAGE}:${TAG}" \
             -t "${IMAGE}:${MAJOR}.${MINOR}" \
