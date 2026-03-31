@@ -37,7 +37,7 @@ jobs:
           echo "${REGISTRY_TOKEN}" | docker login "${REGISTRY}" \
             -u "${{ github.repository_owner }}" --password-stdin
 
-          docker build \
+          docker build --no-cache \
             --build-arg "VERSION=${VERSION}" \
             -t "${IMAGE}:v${VERSION}" \
             -t "${IMAGE}:dev" \
