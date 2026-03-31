@@ -45,8 +45,7 @@ jobs:
         run: |
           apt-get update && apt-get install -y --no-install-recommends \
             git wireguard-tools pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl
-          git clone --depth=1 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
-          git checkout ${GITHUB_SHA}
+          git clone --depth=1 -b "${GITHUB_REF_NAME}" ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
 
       - name: Install uv
         run: pip install uv
@@ -208,8 +207,7 @@ jobs:
     steps:
       - name: Checkout repository
         run: |
-          git clone --depth=1 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
-          git checkout ${GITHUB_SHA}
+          git clone --depth=1 -b "${GITHUB_REF_NAME}" ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
 
       - name: Build and push image
         shell: bash
