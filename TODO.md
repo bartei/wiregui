@@ -195,8 +195,9 @@ Source: `/home/stefanob/PycharmProjects/personal/wirezone`
 - [x] compose.prod.yml (bridge networking, NET_ADMIN, nftables)
 - [x] Health endpoint `GET /api/health`
 - [x] Forgejo CI: test → semver → Docker registry push
+- [x] AGPL-3.0-or-later license
+- [x] README.md with features, quick start, env vars, anti-enshittification manifesto
 - [ ] First-run CLI setup command
-- [ ] README.md
 
 ---
 
