@@ -46,10 +46,21 @@ async def admin_devices_page():
 
     layout()
 
-    # Load users for filter and create form
+    settings = get_settings()
+
+    # Load users and client defaults
     async with async_session() as session:
         users = (await session.execute(select(User).order_by(User.email))).scalars().all()
+        from wiregui.models.configuration import Configuration
+        _db_cfg = (await session.execute(select(Configuration).limit(1))).scalar_one_or_none()
     user_map = {str(u.id): u.email for u in users}
+    _defaults = {
+        "allowed_ips": ", ".join(_db_cfg.default_client_allowed_ips) if _db_cfg and _db_cfg.default_client_allowed_ips else settings.wg_allowed_ips,
+        "dns": ", ".join(_db_cfg.default_client_dns) if _db_cfg and _db_cfg.default_client_dns else settings.wg_dns,
+        "endpoint": _db_cfg.default_client_endpoint if _db_cfg and _db_cfg.default_client_endpoint else settings.wg_endpoint_host,
+        "mtu": str(_db_cfg.default_client_mtu) if _db_cfg else str(settings.wg_mtu),
+        "keepalive": str(_db_cfg.default_client_persistent_keepalive) if _db_cfg else str(settings.wg_persistent_keepalive),
+    }
 
     async def load_devices(user_filter: str | None = None) -> list[dict]:
         async with async_session() as session:
@@ -127,7 +138,11 @@ async def admin_devices_page():
 
             # Build config and show dialog immediately — don't wait for WG/firewall
             server_pubkey = await get_server_public_key()
-            config_text = build_client_config(device, private_key, server_pubkey)
+            async with async_session() as session:
+                from sqlmodel import select as sel
+                from wiregui.models.configuration import Configuration
+                db_config = (await session.execute(sel(Configuration).limit(1))).scalar_one_or_none()
+            config_text = build_client_config(device, private_key, server_pubkey, db_config)
 
             create_dialog.close()
             _reset_create_form()
@@ -152,6 +167,11 @@ async def admin_devices_page():
         create_use_default_endpoint.value = True
         create_use_default_mtu.value = True
         create_use_default_keepalive.value = True
+        create_allowed_ips.value = _defaults["allowed_ips"]
+        create_dns.value = _defaults["dns"]
+        create_endpoint.value = _defaults["endpoint"]
+        create_mtu.value = _defaults["mtu"]
+        create_keepalive.value = _defaults["keepalive"]
 
     # --- Edit device ---
     edit_device_id = {"value": None}
@@ -285,19 +305,19 @@ async def admin_devices_page():
 
             with ui.grid(columns=2).classes("w-full gap-2"):
                 create_use_default_ips = ui.switch("Use default Allowed IPs", value=True)
-                create_allowed_ips = ui.input("Allowed IPs", placeholder="0.0.0.0/0, ::/0").props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_ips, "value", backward=lambda v: not v)
+                create_allowed_ips = ui.input("Allowed IPs", value=_defaults["allowed_ips"]).props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_ips, "value", backward=lambda v: not v)
 
                 create_use_default_dns = ui.switch("Use default DNS", value=True)
-                create_dns = ui.input("DNS Servers", placeholder="1.1.1.1, 1.0.0.1").props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_dns, "value", backward=lambda v: not v)
+                create_dns = ui.input("DNS Servers", value=_defaults["dns"]).props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_dns, "value", backward=lambda v: not v)
 
                 create_use_default_endpoint = ui.switch("Use default Endpoint", value=True)
-                create_endpoint = ui.input("Endpoint", placeholder="vpn.example.com").props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_endpoint, "value", backward=lambda v: not v)
+                create_endpoint = ui.input("Endpoint", value=_defaults["endpoint"]).props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_endpoint, "value", backward=lambda v: not v)
 
                 create_use_default_mtu = ui.switch("Use default MTU", value=True)
-                create_mtu = ui.input("MTU", placeholder="1280").props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_mtu, "value", backward=lambda v: not v)
+                create_mtu = ui.input("MTU", value=_defaults["mtu"]).props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_mtu, "value", backward=lambda v: not v)
 
                 create_use_default_keepalive = ui.switch("Use default Keepalive", value=True)
-                create_keepalive = ui.input("Persistent Keepalive", placeholder="25").props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_keepalive, "value", backward=lambda v: not v)
+                create_keepalive = ui.input("Persistent Keepalive", value=_defaults["keepalive"]).props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_keepalive, "value", backward=lambda v: not v)
 
             with ui.row().classes("w-full justify-end q-mt-sm"):
                 ui.button("Cancel", on_click=create_dialog.close).props("flat")

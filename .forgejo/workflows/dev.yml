@@ -1,0 +1,49 @@
+name: Dev
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  docker:
+    runs-on: docker
+    container:
+      image: catthehacker/ubuntu:act-latest
+      options: --privileged
+    steps:
+      - name: Checkout repository
+        run: |
+          git clone ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git -b dev .
+          git fetch origin main --tags
+
+      - name: Build and push pre-release image
+        shell: bash
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: |
+          # Derive version from latest tag on main: v1.2.3 -> 1.2.3.dev0, .dev1, etc.
+          LATEST_TAG=$(git describe --tags --abbrev=0 origin/main 2>/dev/null || echo "v0.0.0")
+          BASE_VERSION="${LATEST_TAG#v}"
+          # Count commits on dev since that tag
+          DEV_N=$(git rev-list --count "${LATEST_TAG}..HEAD" 2>/dev/null || echo "0")
+          VERSION="${BASE_VERSION}.dev${DEV_N}"
+
+          REGISTRY=$(echo "${{ github.server_url }}" | sed 's|https://||; s|http://||')
+          IMAGE="${REGISTRY}/${{ github.repository_owner }}/wiregui"
+
+          echo "Building ${IMAGE}:v${VERSION}"
+
+          echo "${REGISTRY_TOKEN}" | docker login "${REGISTRY}" \
+            -u "${{ github.repository_owner }}" --password-stdin
+
+          docker build --no-cache \
+            --build-arg "VERSION=${VERSION}" \
+            -t "${IMAGE}:v${VERSION}" \
+            -t "${IMAGE}:dev" \
+            .
+
+          docker push "${IMAGE}:v${VERSION}"
+          docker push "${IMAGE}:dev"
+
+          echo "Pushed ${IMAGE}:v${VERSION}, ${IMAGE}:dev"

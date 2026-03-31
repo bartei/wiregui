@@ -1,6 +1,7 @@
 """Build WireGuard client configuration files."""
 
 from wiregui.config import get_settings
+from wiregui.models.configuration import Configuration
 from wiregui.models.device import Device
 
 
@@ -8,16 +9,40 @@ def build_client_config(
     device: Device,
     private_key: str,
     server_public_key: str,
+    db_config: Configuration | None = None,
 ) -> str:
-    """Build a WireGuard [Interface]+[Peer] config string for a device."""
+    """Build a WireGuard [Interface]+[Peer] config string for a device.
+
+    Uses DB Configuration for client defaults when available,
+    falls back to env-based Settings.
+    """
     settings = get_settings()
 
-    # Resolve per-device or default values
-    dns = device.dns if not device.use_default_dns else settings.wg_dns
-    endpoint_host = device.endpoint if not device.use_default_endpoint else settings.wg_endpoint_host
-    mtu = device.mtu if not device.use_default_mtu else settings.wg_mtu
-    keepalive = device.persistent_keepalive if not device.use_default_persistent_keepalive else settings.wg_persistent_keepalive
-    allowed_ips = device.allowed_ips if not device.use_default_allowed_ips else settings.wg_allowed_ips
+    # Resolve per-device overrides → DB config defaults → env var defaults
+    if device.use_default_dns:
+        dns = db_config.default_client_dns if db_config and db_config.default_client_dns else settings.wg_dns
+    else:
+        dns = device.dns
+
+    if device.use_default_endpoint:
+        endpoint_host = db_config.default_client_endpoint if db_config and db_config.default_client_endpoint else settings.wg_endpoint_host
+    else:
+        endpoint_host = device.endpoint
+
+    if device.use_default_mtu:
+        mtu = db_config.default_client_mtu if db_config else settings.wg_mtu
+    else:
+        mtu = device.mtu
+
+    if device.use_default_persistent_keepalive:
+        keepalive = db_config.default_client_persistent_keepalive if db_config else settings.wg_persistent_keepalive
+    else:
+        keepalive = device.persistent_keepalive
+
+    if device.use_default_allowed_ips:
+        allowed_ips = db_config.default_client_allowed_ips if db_config and db_config.default_client_allowed_ips else settings.wg_allowed_ips
+    else:
+        allowed_ips = device.allowed_ips
 
     # Build address list
     addresses = []

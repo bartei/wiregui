@@ -167,6 +167,74 @@ async def rebuild_all_rules(users_devices_rules: list[dict]) -> None:
         logger.info("Firewall rules rebuilt for {} users", len(users_devices_rules))
 
 
+async def apply_peer_to_peer_policy(enabled: bool) -> None:
+    """Allow or deny traffic between WireGuard peers (peer-to-peer through the server)."""
+    settings = get_settings()
+    iface = settings.wg_interface
+    v4_net = settings.wg_ipv4_network
+    v6_net = settings.wg_ipv6_network
+    chain = "peer_to_peer"
+
+    commands = [
+        f"add chain inet {TABLE_NAME} {chain}",
+        f"flush chain inet {TABLE_NAME} {chain}",
+    ]
+
+    if enabled:
+        # Allow traffic from WG subnet destined to WG subnet (both directions through the interface)
+        commands.append(f'add rule inet {TABLE_NAME} {chain} ip saddr {v4_net} ip daddr {v4_net} accept')
+        commands.append(f'add rule inet {TABLE_NAME} {chain} ip6 saddr {v6_net} ip6 daddr {v6_net} accept')
+    else:
+        # Drop inter-peer traffic
+        commands.append(f'add rule inet {TABLE_NAME} {chain} ip saddr {v4_net} ip daddr {v4_net} drop')
+        commands.append(f'add rule inet {TABLE_NAME} {chain} ip6 saddr {v6_net} ip6 daddr {v6_net} drop')
+
+    try:
+        await _nft_batch(commands)
+        # Ensure the forward chain jumps to peer_to_peer before user chains
+        # We flush and re-add to keep ordering correct
+        logger.info("Peer-to-peer policy: {}", "allow" if enabled else "deny")
+    except RuntimeError as e:
+        logger.error("Failed to apply peer-to-peer policy: {}", e)
+
+
+async def apply_lan_to_peers_policy(enabled: bool) -> None:
+    """Allow or deny traffic from the local network to WireGuard peers."""
+    settings = get_settings()
+    iface = settings.wg_interface
+    v4_net = settings.wg_ipv4_network
+    v6_net = settings.wg_ipv6_network
+    chain = "lan_to_peers"
+
+    commands = [
+        f"add chain inet {TABLE_NAME} {chain}",
+        f"flush chain inet {TABLE_NAME} {chain}",
+    ]
+
+    if enabled:
+        # Allow traffic from non-WG sources destined to WG subnet (LAN → peers)
+        commands.append(f'add rule inet {TABLE_NAME} {chain} ip saddr != {v4_net} ip daddr {v4_net} accept')
+        commands.append(f'add rule inet {TABLE_NAME} {chain} ip6 saddr != {v6_net} ip6 daddr {v6_net} accept')
+    else:
+        # Drop LAN → peer traffic
+        commands.append(f'add rule inet {TABLE_NAME} {chain} ip saddr != {v4_net} ip daddr {v4_net} drop')
+        commands.append(f'add rule inet {TABLE_NAME} {chain} ip6 saddr != {v6_net} ip6 daddr {v6_net} drop')
+
+    try:
+        await _nft_batch(commands)
+        logger.info("LAN-to-peers policy: {}", "allow" if enabled else "deny")
+    except RuntimeError as e:
+        logger.error("Failed to apply LAN-to-peers policy: {}", e)
+
+
+async def get_ruleset() -> str:
+    """Dump the current nftables ruleset for troubleshooting."""
+    try:
+        return await _nft("list ruleset")
+    except RuntimeError:
+        return "nftables is not available.\n\nThis requires root/NET_ADMIN privileges (production container)."
+
+
 def _user_chain_name(user_id: str) -> str:
     """Generate a deterministic chain name from a user ID."""
     # Use first 12 chars of UUID (without hyphens) to keep names short

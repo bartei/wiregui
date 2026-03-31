@@ -1,3 +1,11 @@
+# WireGUI — Pending Items
+
+**Test count: 174 (164 unit + 10 E2E) | Coverage: ~35%**
+
+---
+
+## Testing
+
 # WireGUI Implementation TODO
 
 Migration of Wirezone (Elixir/Phoenix) to Python/NiceGUI.
@@ -15,38 +23,13 @@ Source: `/home/stefanob/PycharmProjects/personal/wirezone`
 
 ### Testing (partially done)
 - [ ] HTTP-level integration tests (OIDC redirect/callback flow with respx mocking)
-
-### Coverage gaps (35% overall — run `uv run pytest --cov=wiregui --cov-report=term-missing --cov-branch`)
-
-**100% covered:** models, schemas, config, auth/passwords, auth/jwt, auth/mfa, auth/api_token, utils/crypto, utils/time, services/notifications
-
-**API routes (32-84% — partially covered via httpx TestClient):**
-- [x] `wiregui/api/v0/users.py` (84%) — list/get/create/update/delete
-- [x] `wiregui/api/v0/rules.py` (71%) — CRUD
-- [x] `wiregui/api/v0/devices.py` (67%) — CRUD, permissions
-- [x] `wiregui/api/v0/configuration.py` (61%) — get/update, auto-create
-- [ ] `wiregui/api/deps.py` (32%) — test get_current_api_user with real Bearer header parsing, require_admin rejection
-
-**Services (62-89% covered):**
-- [x] `wiregui/services/wireguard.py` (62%) — add/remove/get peers mocked
-- [x] `wiregui/services/firewall.py` (73%) — base tables, chains, rules, rebuild mocked
-- [x] `wiregui/services/events.py` (80%) — device + rule events, rebuild chain
-- [x] `wiregui/services/email.py` (89%) — send_email, magic link, no-smtp fallback
+- [ ] `wiregui/api/deps.py` — test get_current_api_user with real Bearer header parsing, require_admin rejection
 - [ ] `wiregui/services/wireguard.py` — test ensure_interface, set_private_key, set_listen_port
 - [ ] `wiregui/services/firewall.py` — test _nft/_nft_batch error handling, add_device_jump_rule with only ipv4/ipv6
-
-**Tasks (40-84% covered):**
-- [x] `wiregui/tasks/stats.py` (77%) — update from peers, no-op, unmatched peer
-- [x] `wiregui/tasks/reconcile.py` (84%) — add missing, remove orphaned, in-sync
-- [x] `wiregui/tasks/oidc_refresh.py` (40%) — no connections, skip unknown provider
 - [ ] `wiregui/tasks/oidc_refresh.py` — test successful refresh, failure with notification, disable_vpn_on_oidc_error
-
-**Auth modules (85-92% covered):**
-- [x] `wiregui/auth/oidc.py` (87%) — register providers, get_client, load from config
-- [x] `wiregui/auth/webauthn.py` (85%) — registration/authentication options
-- [x] `wiregui/auth/session.py` (90%) — no-password, disabled, nonexistent user
 - [ ] `wiregui/auth/saml.py` (0%) — needs mock SAML IdP metadata + response parsing
 - [ ] `wiregui/auth/webauthn.py` — test verify_registration, verify_authentication with mock credential data
+- [ ] E2E tests for admin pages (users, devices, rules, settings)
 
 **E2E page tests (Playwright async API in `tests/e2e/`):**
 - [x] `tests/e2e/test_login.py` (6 tests) — valid login, invalid password, nonexistent email, disabled user, logout, unauthenticated redirect
@@ -112,6 +95,10 @@ Source: `/home/stefanob/PycharmProjects/personal/wirezone`
 - [ ] Device detail: delete with confirmation → redirects to /devices
 - [ ] Auto-refresh: stats labels update after timer fires (mock timer)
 
+## UI
+
+- [ ] SSO Providers on account page: add Status column, "Disconnect" action
+- [ ] Admin pages (users, devices, rules): apply same card-based styling as account/settings/diagnostics
 `tests/e2e/test_account_extended.py` — Account Page (additional):
 - [ ] SSO providers section shows connected providers
 - [ ] SSO providers section shows "No SSO providers" when empty
@@ -123,6 +110,8 @@ Source: `/home/stefanob/PycharmProjects/personal/wirezone`
 - [ ] Danger zone: disabled when only admin
 - [ ] Danger zone: wrong email in confirmation → shows error
 
+
+## Features
 
 ### Deployment ✅
 

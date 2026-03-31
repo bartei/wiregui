@@ -32,6 +32,10 @@ class Configuration(SQLModel, table=True):
         sa_column=Column(JSON, default=["0.0.0.0/0", "::/0"]),
     )
 
+    # Firewall policies
+    allow_peer_to_peer: bool = Field(default=False)
+    allow_lan_to_peers: bool = Field(default=False)
+
     # Server WireGuard keypair (generated on first startup)
     server_private_key: str | None = None
     server_public_key: str | None = None
