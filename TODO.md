@@ -3,7 +3,7 @@
 Migration of Wirezone (Elixir/Phoenix) to Python/NiceGUI.
 Source: `/home/stefanob/PycharmProjects/personal/wirezone`
 
-**Test count: 164 (163 passing, 1 skipped) | Coverage: 35%**
+**Test count: 174 (173 passing, 1 skipped) | Coverage: 35%**
 
 ---
 
@@ -181,8 +181,10 @@ Source: `/home/stefanob/PycharmProjects/personal/wirezone`
 - [ ] `wiregui/auth/saml.py` (0%) — needs mock SAML IdP metadata + response parsing
 - [ ] `wiregui/auth/webauthn.py` — test verify_registration, verify_authentication with mock credential data
 
-**Pages (0% — requires E2E testing):**
-- [ ] Consider Playwright or NiceGUI's testing utilities for E2E page tests
+**E2E page tests (via NiceGUI `User` fixture in `tests/e2e/`):**
+- [x] `tests/e2e/test_devices.py` (2 tests) — add device full flow, name validation
+- [x] `tests/e2e/test_account.py` (8 tests) — change password (success/wrong/mismatch/short), create API token, TOTP registration + invalid code, account deletion
+- [ ] E2E tests for admin pages (users, devices, rules, settings)
 
 ### Logging (done)
 - [x] Loguru configured (wiregui/logging.py), no print statements
