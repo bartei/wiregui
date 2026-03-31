@@ -112,7 +112,11 @@ async def devices_page():
 
             # Build config and show dialog immediately — don't wait for WG/firewall
             server_pubkey = await get_server_public_key()
-            config_text = build_client_config(device, private_key, server_pubkey)
+            async with async_session() as session:
+                from sqlmodel import select as sel
+                from wiregui.models.configuration import Configuration
+                db_config = (await session.execute(sel(Configuration).limit(1))).scalar_one_or_none()
+            config_text = build_client_config(device, private_key, server_pubkey, db_config)
 
             create_dialog.close()
             _reset_create_form()
