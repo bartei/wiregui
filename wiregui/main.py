@@ -62,14 +62,18 @@ async def startup() -> None:
         from wiregui.services.firewall import setup_base_tables, setup_masquerade
         from wiregui.services.wireguard import configure_interface, ensure_interface
         from wiregui.tasks.reconcile import reconcile
-        from wiregui.tasks.stats import stats_loop
 
         await ensure_interface()
         await configure_interface()
         await setup_base_tables()
         await setup_masquerade()
         await reconcile()
-        register_task(stats_loop(), name="wg-stats")
+
+        if settings.metrics_enabled:
+            _start_collector()
+        else:
+            from wiregui.tasks.stats import stats_loop
+            register_task(stats_loop(), name="wg-stats")
         register_task(vpn_session_loop(), name="vpn-session-expiry")
     else:
         logger.info("WireGuard disabled (WG_WG_ENABLED=false) — running in UI-only mode")
@@ -77,9 +81,36 @@ async def startup() -> None:
     logger.info("WireGUI ready")
 
 
+_collector_proc = None
+
+
+def _start_collector() -> None:
+    """Spawn the metrics collector as a subprocess sharing our network namespace."""
+    import subprocess
+    import sys
+
+    global _collector_proc
+    _collector_proc = subprocess.Popen(
+        [sys.executable, "-m", "wiregui.collector"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    logger.info("Metrics collector started (pid={})", _collector_proc.pid)
+
+
 async def shutdown() -> None:
     from wiregui.tasks import cancel_all
     await cancel_all()
+
+    global _collector_proc
+    if _collector_proc and _collector_proc.poll() is None:
+        logger.info("Stopping metrics collector (pid={})", _collector_proc.pid)
+        _collector_proc.terminate()
+        try:
+            _collector_proc.wait(timeout=5)
+        except Exception:
+            _collector_proc.kill()
+        _collector_proc = None
 
 
 app.on_startup(startup)

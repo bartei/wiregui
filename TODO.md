@@ -1,130 +1,87 @@
-# WireGUI — Pending Items
-
-**Test count: 268 (198 unit + 70 E2E) | Coverage: 36% unit, ~63% effective (incl. E2E)**
+# WireGUI — TODO
 
 ---
 
-## Testing
+## WireGuard Metrics Collector
 
-# WireGUI Implementation TODO
+### Overview
 
-Migration of Wirezone (Elixir/Phoenix) to Python/NiceGUI.
-Source: `/home/stefanob/PycharmProjects/personal/wirezone`
+Separate Python process dedicated to high-frequency WireGuard stats collection, with optional VictoriaMetrics time-series storage. Replaces the current 60s in-process polling with a 5s external collector.
 
-**Test count: 268 (198 unit + 70 E2E) | Coverage: 36% unit, ~63% effective (incl. E2E)**
-**Run:** `uv run pytest` (unit) / `uv run pytest tests/e2e/` (E2E via Playwright)
+### Current state
+- `tasks/stats.py`: polls `wg show dump` every 60s inside the web process asyncio loop
+- UI timers: 30s refresh on device pages
+- Worst-case latency: ~90s before a stat change is visible
 
+### Target state
+- Collector process: polls every 5s, writes to DB + VictoriaMetrics
+- UI timers: 10s refresh
+- Worst-case latency: ~15s
 
-## Phase 7: Admin UI ✅
+### Phase 1: Configuration ✅
 
-- [ ] **TODO:** SAML provider management in Authentication tab
+- [x] Add settings to `config.py`:
+  - `WG_METRICS_ENABLED: bool = False`
+  - `WG_METRICS_POLL_INTERVAL: int = 5` (seconds)
+  - `WG_VICTORIAMETRICS_URL: str | None = None` (e.g. `http://localhost:8428`)
+- [x] When `WG_METRICS_ENABLED=false`, keep existing `stats_loop` as fallback
+- [x] When `WG_METRICS_ENABLED=true`, skip registering `stats_loop` in `main.py`
 
-## Phase 10: Polish, Testing & Deployment
+### Phase 2: Collector process ✅
 
-### Testing (partially done)
-- [ ] HTTP-level integration tests (OIDC redirect/callback flow with respx mocking)
-- [x] `wiregui/api/deps.py` (11 tests) — resolve_bearer_token (valid/expired/invalid/disabled/no-expiry), get_current_api_user (missing header/bad scheme/invalid token/valid token), require_admin (admin/unprivileged)
-- [x] `wiregui/services/wireguard.py` (6 tests) — ensure_interface (exists/creates new), set_private_key, set_listen_port, configure_interface (no config/sets key+port)
-- [x] `wiregui/services/firewall.py` (17 tests) — _nft error/success, _nft_batch error/stdin, add_device_jump_rule (ipv4-only/ipv6-only/no-ips/both), setup_base_tables error handling, masquerade error, peer-to-peer/lan-to-peers policies, get_ruleset fallback
-- [ ] `wiregui/tasks/oidc_refresh.py` — test successful refresh, failure with notification, disable_vpn_on_oidc_error
-- [x] `wiregui/auth/saml.py` — full SAML flow tested via mock SimpleSAMLphp IdP (e2e)
-- [ ] `wiregui/auth/webauthn.py` — test verify_registration, verify_authentication with mock credential data
-- [ ] E2E tests for admin pages (users, devices, rules, settings)
+- [x] Create `wiregui/collector.py` — standalone entry point (`python -m wiregui.collector`)
+- [x] No NiceGUI dependency — only asyncio + asyncpg + httpx
+- [x] Poll `wg show <iface> dump` every `WG_METRICS_POLL_INTERVAL` seconds
+- [x] Update Device rows in PostgreSQL (same fields as current `stats_loop`)
+- [x] Push metrics to VictoriaMetrics via `/api/v1/import/prometheus` (if URL configured)
+- [x] Graceful shutdown on SIGTERM/SIGINT
+- [x] Web app spawns collector as subprocess when `WG_METRICS_ENABLED=true`
+- [x] Web app terminates collector on shutdown
 
-**E2E page tests (Playwright async API in `tests/e2e/`):**
-- [x] `tests/e2e/test_login.py` (6 tests) — valid login, invalid password, nonexistent email, disabled user, logout, unauthenticated redirect
-- [x] `tests/e2e/test_devices.py` (2 tests) — add device full flow, name validation
-- [x] `tests/e2e/test_account.py` (8 tests) — change password (success/wrong/mismatch/short), create API token, TOTP registration + invalid code, account deletion
-- [x] `tests/e2e/test_admin_users.py` (10 tests) — page renders, create user, duplicate email, edit role/password, disable/enable, delete, cascade delete, self-delete guard
-- [x] `tests/e2e/test_idp_seed.py` (9 tests) — IdP YAML seeding (noop/missing/invalid, OIDC/SAML add, upsert, preserve), OIDC button visible, full OIDC login flow via mock-oidc
-- [x] `tests/e2e/test_mfa_login.py` (4 tests) — MFA redirect on login, valid TOTP completes login, invalid code error, cancel returns to login
-- [x] `tests/e2e/test_magic_link_page.py` (4 tests) — page renders, success on submit, empty email error, back to login
-- [x] `tests/e2e/test_admin_devices.py` (7 tests) — list all devices, filter by user, create with defaults, create with overrides, edit name/description, delete, config dialog with QR
-- [x] `tests/e2e/test_admin_rules.py` (7 tests) — list rules table, create accept/drop/global rules, edit action/destination, delete rule (all verified in DB)
-- [x] `tests/e2e/test_admin_settings.py` (9 tests) — client defaults save/reload, security toggles (local auth, VPN session, unprivileged), OIDC add/delete, SAML add/delete (all verified in DB)
-- [x] `tests/e2e/test_saml_login.py` (4 tests) — SAML button visible, redirect to IdP, SP metadata endpoint, full SAML login flow via mock SimpleSAMLphp
+### Phase 3: VictoriaMetrics metrics
 
-**E2E tests still needed:**
+Metrics to push (Prometheus exposition format):
+- [ ] `wiregui_peer_rx_bytes{public_key, user_email, device_name}` — counter
+- [ ] `wiregui_peer_tx_bytes{public_key, user_email, device_name}` — counter
+- [ ] `wiregui_peer_latest_handshake_seconds{public_key, user_email, device_name}` — gauge
+- [ ] `wiregui_peer_connected{public_key, user_email, device_name}` — 1 if handshake < 180s, else 0
+- [ ] `wiregui_peers_total` — gauge, count of active peers
 
-`tests/e2e/test_login.py` — Login & Auth flows (remaining):
-- [x] Login with MFA → redirects to /mfa challenge page
-- [x] MFA challenge: valid TOTP code → completes login
-- [x] MFA challenge: invalid code → shows error, stays on /mfa
-- [x] MFA challenge: cancel → returns to /login
-- [x] Magic link request page renders, shows success on submit
+### Phase 4: UI improvements
 
-`tests/e2e/test_admin_devices.py` — Admin Device Management:
-- [x] List all devices across users
-- [x] Filter by user → shows only that user's devices
-- [x] Create device with full config overrides (DNS, endpoint, MTU, keepalive, allowed IPs)
-- [x] Create device with defaults → use_default flags all True
-- [x] Edit device name and description → persists
-- [x] Edit device config overrides (toggle use_default off, set custom values)
-- [x] Delete device → removed from table
-- [x] Config dialog shows valid WireGuard config with real server public key
-- [x] QR code renders in config dialog
+- [ ] Reduce UI timer from 30s to 10s on device pages (devices.py, admin/devices.py)
+- [ ] Add connection status indicator (green/yellow/red dot) based on handshake age
+  - Green: handshake < 2 min
+  - Yellow: handshake < 5 min
+  - Red: no recent handshake or never connected
+- [ ] Add traffic rate display (bytes/sec computed from delta between polls)
+- [ ] Device detail page: mini traffic chart (query VictoriaMetrics if available, else show last-known values)
 
-`tests/e2e/test_admin_rules.py` — Admin Firewall Rules:
-- [x] List rules → table shows action, destination, protocol, port, user
-- [x] Create accept rule with CIDR → appears in table
-- [x] Create drop rule with TCP port range → appears correctly
-- [x] Create global rule (no user) → shows "Global"
-- [x] Edit rule action (accept → drop) → persists
-- [x] Edit rule destination → persists
-- [x] Delete rule → removed from table
+### Phase 5: Infrastructure ✅
 
-`tests/e2e/test_admin_settings.py` — Admin Settings:
-- [x] Client defaults: save endpoint, DNS, MTU, keepalive, allowed IPs → persists in DB
-- [x] Client defaults: saved values reflected on page reload
-- [x] Security: toggle local auth → persists
-- [x] Security: change VPN session duration → persists
-- [x] Security: toggle unprivileged device management/configuration → persists
-- [x] OIDC: add provider → appears in table
-- [x] OIDC: delete provider → removed from table
-- [x] SAML: add provider → appears in table
-- [x] SAML: delete provider → removed from table
+- [x] Create `compose.test.yml` — full integration stack with real WG
+- [x] Add VictoriaMetrics (single-node, port 8428, 7d retention)
+- [x] Add 3 mock WG client containers (alpine + wireguard-tools)
+- [x] Clients generate traffic by pinging each other through the tunnel every 3s
+- [x] Setup script (`docker/mock-clients/setup.py`) generates keypairs and configs
+- [x] Collector runs as subprocess inside the WireGUI container (shares network namespace)
+- [ ] Add VictoriaMetrics to dev `compose.yml` (optional, for local testing)
 
-`tests/e2e/test_admin_diagnostics.py` — Admin Diagnostics:
-- [ ] Page renders WireGuard interface status
-- [ ] Active peers table shows devices with handshakes
-- [ ] Connectivity checks table shows recent results
-- [ ] Notifications list shows system notifications
-- [ ] Clear single notification → removed
-- [ ] Clear all notifications → list empty
+### Design notes
 
-`tests/e2e/test_devices_user.py` — User Device Pages:
-- [ ] Device list shows only own devices (not other users')
-- [ ] Create device → shows in table with allocated IPs
-- [ ] Device detail page shows public key, IPs, stats, active config
-- [ ] Device detail: edit name → persists
-- [ ] Device detail: toggle config overrides → custom values saved
-- [ ] Device detail: delete with confirmation → redirects to /devices
-- [ ] Auto-refresh: stats labels update after timer fires (mock timer)
+- **Why a separate process?** The `wg show` subprocess call and DB writes at 5s intervals shouldn't share the asyncio loop with the web app. A separate process ensures UI responsiveness isn't affected by stats collection.
+- **Why not `run.cpu_bound`?** That uses `ProcessPoolExecutor` for one-shot CPU tasks inside request handling — not suitable for a long-running daemon. A separate entry point is cleaner.
+- **VictoriaMetrics push model:** Use the Prometheus remote write API. No scrape config needed — the collector pushes directly. VictoriaMetrics is optional; the collector works fine with just PostgreSQL.
+- **Backward compatible:** When `WG_METRICS_ENABLED=false` (default), everything works exactly as it does today.
+
+---
 
 ## UI
 
+- [ ] SAML provider management in Authentication tab (admin settings)
 - [ ] SSO Providers on account page: add Status column, "Disconnect" action
 - [ ] Admin pages (users, devices, rules): apply same card-based styling as account/settings/diagnostics
-`tests/e2e/test_account_extended.py` — Account Page (additional):
-- [ ] SSO providers section shows connected providers
-- [ ] SSO providers section shows "No SSO providers" when empty
-- [ ] MFA: add security key (WebAuthn) → method appears in table (mock navigator.credentials)
-- [ ] MFA: delete method with confirmation → removed from table
-- [ ] API tokens: expired token shows "Expired" badge
-- [ ] API tokens: delete token → removed from table
-- [ ] API tokens: copy button calls clipboard API
-- [ ] Danger zone: disabled when only admin
-- [ ] Danger zone: wrong email in confirmation → shows error
-
 
 ## Features
 
-### Deployment ✅
-
 - [ ] First-run CLI setup command
-
----
-
-### Remaining
-- [ ] SSO Providers: add Status column, "Disconnect" action
-- [ ] Admin pages (users, devices, rules): apply same card-based styling

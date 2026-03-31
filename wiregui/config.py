@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from: str = "wiregui@localhost"
 
+    # Metrics collector
+    metrics_enabled: bool = False  # run separate collector process for high-frequency stats
+    metrics_poll_interval: int = 5  # seconds between wg show polls (collector process)
+    victoriametrics_url: str | None = None  # e.g. http://localhost:8428
+
     # IdP provisioning
     idp_config_file: str | None = None  # path to YAML file with IdP definitions
 
