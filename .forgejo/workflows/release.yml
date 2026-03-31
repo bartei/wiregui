@@ -63,13 +63,14 @@ jobs:
       - name: Install Playwright browsers
         run: uv run playwright install --with-deps chromium
 
+      - name: Run migrations
+        run: uv run alembic upgrade head
+
       - name: Run unit tests
         run: uv run pytest tests/ --ignore=tests/e2e -v --tb=short
 
       - name: Run E2E tests
-        run: |
-          uv run alembic upgrade head
-          uv run pytest tests/e2e/ -v --tb=short
+        run: uv run pytest tests/e2e/ -v --tb=short
 
   release:
     needs: test
