@@ -231,8 +231,8 @@ async def get_ruleset() -> str:
     """Dump the current nftables ruleset for troubleshooting."""
     try:
         return await _nft("list ruleset")
-    except RuntimeError as e:
-        return f"Error: {e}"
+    except RuntimeError:
+        return "nftables is not available.\n\nThis requires root/NET_ADMIN privileges (production container)."
 
 
 def _user_chain_name(user_id: str) -> str:
