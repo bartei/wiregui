@@ -58,8 +58,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install bash
+        run: apt-get update && apt-get install -y --no-install-recommends bash
+
       - name: Determine version bump
         id: version
+        shell: bash
         run: |
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "latest_tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
@@ -107,6 +111,7 @@ jobs:
       - name: Generate changelog
         id: changelog
         if: steps.version.outputs.skip != 'true'
+        shell: bash
         run: |
           LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
           NEW_TAG="${{ steps.version.outputs.new_tag }}"
