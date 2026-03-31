@@ -54,7 +54,7 @@ async def create_device(
     settings = get_settings()
     owner_id = body.user_id if (body.user_id and current_user.role == "admin") else current_user.id
 
-    _private_key, public_key = await generate_keypair()
+    _private_key, public_key = generate_keypair()
     psk = generate_preshared_key()
     ipv4 = await allocate_ipv4(session, settings.wg_ipv4_network)
     ipv6 = await allocate_ipv6(session, settings.wg_ipv6_network)

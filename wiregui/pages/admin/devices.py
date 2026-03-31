@@ -88,7 +88,7 @@ async def admin_devices_page():
 
         try:
             settings = get_settings()
-            private_key, public_key = await generate_keypair()
+            private_key, public_key = generate_keypair()
             psk = generate_preshared_key()
 
             async with async_session() as session:

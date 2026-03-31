@@ -1,37 +1,31 @@
-"""WireGuard key generation and encryption utilities."""
+"""WireGuard key generation and encryption utilities — pure Python, no wg CLI needed."""
 
-import asyncio
 import base64
 import os
 
-
-async def generate_private_key() -> str:
-    """Generate a WireGuard private key using `wg genkey`."""
-    proc = await asyncio.create_subprocess_exec(
-        "wg", "genkey", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await proc.communicate()
-    if proc.returncode != 0:
-        raise RuntimeError("wg genkey failed")
-    return stdout.decode().strip()
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
 
 
-async def derive_public_key(private_key: str) -> str:
-    """Derive a WireGuard public key from a private key using `wg pubkey`."""
-    proc = await asyncio.create_subprocess_exec(
-        "wg", "pubkey", stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await proc.communicate(input=private_key.encode())
-    if proc.returncode != 0:
-        raise RuntimeError("wg pubkey failed")
-    return stdout.decode().strip()
+def generate_private_key() -> str:
+    """Generate a WireGuard private key (Curve25519, base64-encoded)."""
+    key = X25519PrivateKey.generate()
+    raw = key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+    return base64.b64encode(raw).decode()
 
 
-async def generate_keypair() -> tuple[str, str]:
+def derive_public_key(private_key: str) -> str:
+    """Derive a WireGuard public key from a private key."""
+    raw = base64.b64decode(private_key)
+    key = X25519PrivateKey.from_private_bytes(raw)
+    pub = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    return base64.b64encode(pub).decode()
+
+
+def generate_keypair() -> tuple[str, str]:
     """Generate a WireGuard keypair. Returns (private_key, public_key)."""
-    private_key = await generate_private_key()
-    public_key = await derive_public_key(private_key)
+    private_key = generate_private_key()
+    public_key = derive_public_key(private_key)
     return private_key, public_key
 
 
