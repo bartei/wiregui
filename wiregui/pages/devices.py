@@ -113,14 +113,22 @@ async def devices_page():
             server_pubkey = await get_server_public_key()
             config_text = build_client_config(device, private_key, server_pubkey)
 
-            create_dialog.close()
-            _reset_create_form()
-            await refresh_table()
-            _show_config_dialog(device.name, config_text)
+            try:
+                create_dialog.close()
+                _reset_create_form()
+                await refresh_table()
+                _show_config_dialog(device.name, config_text)
+            except RuntimeError:
+                pass  # Client navigated away during async work
 
+        except RuntimeError:
+            pass  # Client disconnected
         except Exception as e:
             logger.error("Failed to create device: {}", e)
-            ui.notify(f"Error: {e}", type="negative")
+            try:
+                ui.notify(f"Error: {e}", type="negative")
+            except RuntimeError:
+                pass
 
     def _reset_create_form():
         create_name.value = ""
