@@ -352,7 +352,7 @@ def _show_config_dialog(device_name: str, config_text: str):
                 qr = qrcode.make(config_text, image_factory=qrcode.image.svg.SvgPathImage)
                 buf = io.BytesIO()
                 qr.save(buf)
-                ui.html(buf.getvalue().decode()).classes("w-full q-mt-sm")
+                ui.html(buf.getvalue().decode()).classes("w-full q-mt-sm").style("background: white; padding: 8px; border-radius: 8px")
             except Exception:
                 pass
             ui.button("Download .conf", on_click=lambda: ui.download(config_text.encode(), f"{device_name}.conf")).props("color=primary unelevated").classes("w-full q-mt-sm")

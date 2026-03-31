@@ -459,7 +459,7 @@ def _show_config_dialog(device_name: str, config_text: str):
                 qr = qrcode.make(config_text, image_factory=qrcode.image.svg.SvgPathImage)
                 buf = io.BytesIO()
                 qr.save(buf)
-                ui.html(buf.getvalue().decode()).classes("w-full q-mt-sm")
+                ui.html(buf.getvalue().decode()).classes("w-full q-mt-sm").style("background: white; padding: 8px; border-radius: 8px")
             except Exception:
                 ui.label("QR code generation failed").classes("text-caption text-grey")
 
