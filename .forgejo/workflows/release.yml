@@ -40,6 +40,14 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            python -c "import socket; s=socket.create_connection(('postgres',5432),2); s.close(); print('Postgres ready')" 2>/dev/null && break
+            echo "Waiting for Postgres... ($i)"
+            sleep 2
+          done
+
       - name: Run tests
         run: uv run pytest -v --tb=short
 
