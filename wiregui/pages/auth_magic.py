@@ -87,5 +87,6 @@ async def magic_link_verify_page(user_id: str, token: str):
         user_id=str(user.id),
         email=user.email,
         role=user.role,
+        theme_preference=user.theme_preference,
     )
     ui.navigate.to("/")

@@ -9,6 +9,7 @@ from sqlmodel import select
 from wiregui.auth.mfa import verify_totp_code
 from wiregui.db import async_session
 from wiregui.models.mfa_method import MFAMethod
+from wiregui.pages.style import apply_style
 
 
 @ui.page("/mfa")
@@ -18,6 +19,7 @@ async def mfa_challenge_page():
     if not pending:
         return ui.navigate.to("/login")
 
+    apply_style()
     user_id = UUID(pending["user_id"])
 
     # Load user's MFA methods
@@ -82,6 +84,7 @@ def _complete_login(pending: dict):
         user_id=pending["user_id"],
         email=pending["email"],
         role=pending["role"],
+        theme_preference=pending.get("theme_preference", "auto"),
     )
     # Clear pending state
     app.storage.user.pop("pending_mfa", None)

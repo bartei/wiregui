@@ -3,7 +3,7 @@
 Migration of Wirezone (Elixir/Phoenix) to Python/NiceGUI.
 Source: `/home/stefanob/PycharmProjects/personal/wirezone`
 
-**Test count: 164 passing | Coverage: 35%**
+**Test count: 164 (163 passing, 1 skipped) | Coverage: 35%**
 
 ---
 
@@ -198,58 +198,34 @@ Source: `/home/stefanob/PycharmProjects/personal/wirezone`
 
 ---
 
-## UI Polish — Account Page (`/account`)
+## UI Polish & Styling
 
-Redesign from tabbed layout to single scrollable page (matching original wirezone pattern).
-Leverage Quasar components + Tailwind utility classes for modern look.
+### Global styling ✅
+- [x] Manrope font loaded from Google Fonts as primary UI font (`wiregui/pages/style.py`)
+- [x] Font applied on all pages (layout, login, MFA challenge)
+- [x] Dark/light/auto theme toggle in header — cycles with icon button
+- [x] Theme preference stored in `users.theme_preference` column (migration `a3f1d8e92b01`)
+- [x] Theme persisted to DB and loaded into session on all login flows (password, MFA, magic link, OIDC, SAML)
 
-### Layout change
-- [ ] Remove tabs — render all sections stacked vertically on one page
-- [ ] Page header: "Account Settings" with subtitle description
+### Account page (`/account`) ✅
+- [x] Card-based layout matching admin pages (diagnostics, settings)
+- [x] Account Details: `ui.grid(columns=2)` with bold labels, same as diagnostics
+- [x] Change Password: inline card section (no modal), outlined inputs, validation
+- [x] Connected SSO Providers: always visible card with empty state
+- [x] API Tokens: table with status badges, inline create, copy-to-clipboard with green accent card
+- [x] MFA: methods table, inline TOTP registration (QR + verify), WebAuthn, empty state
+- [x] Danger Zone: red left border accent, typed email confirmation, disabled if only admin
 
-### Section 1: Account Details
-- [ ] Quasar `q-card` with clean table layout (not grid) for user info
-- [ ] Rows: Email, Role, Last Sign-in, Method, Created
-- [ ] Tailwind: rounded borders, hover states on rows, subtle dividers
-- [ ] "Edit" button to open email change dialog (future)
+### Settings page (`/admin/settings`) ✅
+- [x] Converted from tabbed layout to stacked cards (Client Defaults, Security, Authentication)
 
-### Section 2: Change Password
-- [ ] Separate `q-card` below details
-- [ ] Outlined inputs with proper validation feedback
-- [ ] Min 8 chars, confirmation match check shown inline
-- [ ] Success/error toast notifications
+### Consistency pass ✅
+- [x] All buttons solid (`unelevated`) — no outline buttons anywhere
+- [x] All pages use `w-full p-4` container with `text-h5 q-mb-md` page title
+- [x] All `text-grey-7` / `text-grey-8` replaced with dark-mode-safe `text-grey`
+- [x] Sidebar: removed hardcoded `bg-grey-1`, uses theme-aware background
+- [x] Card titles: `text-subtitle1 text-bold` + `ui.separator()` everywhere
 
-### Section 3: Connected SSO Providers
-- [ ] `q-card` showing OIDC connections as a proper table
-- [ ] Columns: Provider, Last Refreshed, Status
-- [ ] "Disconnect" action per provider (future)
-- [ ] Empty state: "No SSO providers connected"
-
-### Section 4: Multi-Factor Authentication
-- [ ] `q-card` with MFA methods table
-- [ ] Columns: Name, Type, Last Used, Actions (delete)
-- [ ] Styled delete button (red outline, confirmation dialog)
-- [ ] "Add TOTP Method" and "Add Security Key" buttons below table
-- [ ] TOTP registration renders inline (QR + verify code) inside an expansion panel
-- [ ] Empty state with icon + message
-
-### Section 5: API Tokens
-- [ ] `q-card` with tokens table
-- [ ] Columns: Created, Expires, Status (chip: green "Active" / red "Expired"), Actions
-- [ ] Quasar `q-chip` for status badges
-- [ ] Create token: inline row with expiry input + button (not a dialog)
-- [ ] Token display after creation: `q-banner` with copy-to-clipboard button
-- [ ] Empty state message
-
-### Section 6: Danger Zone
-- [ ] `q-card` with red left border accent (`border-l-4 border-red-500`)
-- [ ] "Delete Your Account" button with `q-btn color=negative outline`
-- [ ] Confirmation dialog with typed email verification
-- [ ] Disabled if user is the only admin
-
-### General styling improvements
-- [ ] Consistent card spacing (`q-mt-lg` between sections)
-- [ ] Section titles: `text-h6 text-weight-medium`
-- [ ] Descriptive subtitles below each section title in `text-caption text-grey-7`
-- [ ] Responsive: max-width container centered (`max-w-3xl mx-auto`)
-- [ ] Smooth scroll between sections
+### Remaining
+- [ ] SSO Providers: add Status column, "Disconnect" action
+- [ ] Admin pages (users, devices, rules): apply same card-based styling

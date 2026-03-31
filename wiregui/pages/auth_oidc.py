@@ -116,5 +116,6 @@ async def oidc_callback(provider_id: str, request: Request):
         request.session["user_id"] = str(user.id)
         request.session["email"] = user.email
         request.session["role"] = user.role
+        request.session["theme_preference"] = user.theme_preference
 
     return RedirectResponse(url="/")

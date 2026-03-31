@@ -122,3 +122,7 @@ alembic/
 - Run with `uv run pytest`
 - Use `pytest-asyncio` for async tests
 - Test database: uses same Postgres instance, separate `wiregui_test` database
+
+## Git Commits
+- **Never** add `Co-Authored-By` lines or any AI attribution to commit messages
+- Follow conventional commits format (fix:, feat:, chore:, etc.) matching existing history

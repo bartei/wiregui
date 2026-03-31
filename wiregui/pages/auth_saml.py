@@ -105,6 +105,7 @@ async def saml_callback(provider_id: str, request: Request):
             request.session["user_id"] = str(user.id)
             request.session["email"] = user.email
             request.session["role"] = user.role
+            request.session["theme_preference"] = user.theme_preference
 
         logger.info("SAML login: {} via {}", email, provider_id)
         return RedirectResponse(url="/", status_code=303)

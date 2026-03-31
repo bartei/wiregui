@@ -346,5 +346,5 @@ def _show_config_dialog(device_name: str, config_text: str):
                 ui.html(buf.getvalue().decode()).classes("w-full q-mt-sm")
             except Exception:
                 pass
-            ui.button("Download .conf", on_click=lambda: ui.download(config_text.encode(), f"{device_name}.conf")).props("color=primary outline").classes("w-full q-mt-sm")
+            ui.button("Download .conf", on_click=lambda: ui.download(config_text.encode(), f"{device_name}.conf")).props("color=primary unelevated").classes("w-full q-mt-sm")
             ui.button("Close", on_click=dialog.close).props("flat").classes("w-full")

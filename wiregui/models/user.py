@@ -21,6 +21,7 @@ class User(SQLModel, table=True):
     sign_in_token_created_at: datetime | None = None
 
     disabled_at: datetime | None = None
+    theme_preference: str = Field(default="auto")  # "light" | "dark" | "auto"
 
     inserted_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

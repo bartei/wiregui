@@ -97,7 +97,7 @@ async def diagnostics_page():
                 ]
                 ui.table(columns=peer_columns, rows=peer_rows, row_key="name").classes("w-full")
             else:
-                ui.label("No active peers with recent handshakes.").classes("text-caption text-grey-7 q-pa-sm")
+                ui.label("No active peers with recent handshakes.").classes("text-caption text-grey q-pa-sm")
 
         # --- Connectivity Checks ---
         with ui.card().classes("w-full q-mt-md"):
@@ -128,7 +128,7 @@ async def diagnostics_page():
                 ]
                 ui.table(columns=check_columns, rows=check_rows, row_key="time").classes("w-full")
             else:
-                ui.label("No connectivity checks recorded yet.").classes("text-caption text-grey-7 q-pa-sm")
+                ui.label("No connectivity checks recorded yet.").classes("text-caption text-grey q-pa-sm")
 
         # --- Notifications ---
         with ui.card().classes("w-full q-mt-md"):
@@ -143,10 +143,10 @@ async def diagnostics_page():
                         ui.icon("error" if n.severity == "error" else "warning" if n.severity == "warning" else "info").props(f"color={color}")
                         ui.label(f"{n.timestamp.strftime('%H:%M:%S')} — {n.message}").classes("text-sm")
                         if n.user:
-                            ui.label(f"({n.user})").classes("text-caption text-grey-7")
+                            ui.label(f"({n.user})").classes("text-caption text-grey")
                         ui.button(icon="close", on_click=lambda nid=n.id: _clear_notif(nid)).props("flat dense size=xs")
             else:
-                ui.label("No notifications.").classes("text-caption text-grey-7 q-pa-sm")
+                ui.label("No notifications.").classes("text-caption text-grey q-pa-sm")
 
             if notifs:
                 ui.button("Clear All", on_click=lambda: _clear_all_notifs()).props("flat color=negative").classes("q-mt-sm")

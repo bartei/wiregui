@@ -190,7 +190,7 @@ async def devices_page():
 
             ui.separator().classes("q-my-sm")
             ui.label("Configuration Overrides").classes("text-subtitle2")
-            ui.label("Toggle off to set custom values instead of server defaults.").classes("text-caption text-grey-7")
+            ui.label("Toggle off to set custom values instead of server defaults.").classes("text-caption text-grey")
 
             with ui.grid(columns=2).classes("w-full gap-2"):
                 create_use_default_ips = ui.switch("Use default Allowed IPs", value=True)
@@ -295,7 +295,7 @@ async def device_detail_page(device_id: str):
             ui.button(icon="arrow_back", on_click=lambda: ui.navigate.to("/devices")).props("flat")
             ui.label(device.name).classes("text-h5")
             if device.description:
-                ui.label(f"— {device.description}").classes("text-subtitle1 text-grey-7")
+                ui.label(f"— {device.description}").classes("text-subtitle1 text-grey")
 
         # Device info card
         with ui.card().classes("w-full q-mt-md"):
@@ -317,7 +317,7 @@ async def device_detail_page(device_id: str):
         # Traffic stats (live-updating)
         with ui.card().classes("w-full q-mt-md"):
             ui.label("Traffic Stats").classes("text-subtitle1 text-bold")
-            ui.label("Auto-refreshes every 30s").classes("text-caption text-grey-7")
+            ui.label("Auto-refreshes every 30s").classes("text-caption text-grey")
             ui.separator()
             with ui.grid(columns=2).classes("w-full gap-2 q-pa-sm"):
                 ui.label("RX:").classes("text-bold")
@@ -423,7 +423,7 @@ async def device_detail_page(device_id: str):
             ui.label("Danger Zone").classes("text-subtitle1 text-bold text-negative")
             ui.separator()
             ui.button("Delete Device", icon="delete", on_click=lambda: confirm_dialog.open()).props(
-                "color=negative outline"
+                "color=negative unelevated"
             )
 
     # Confirm delete dialog
@@ -458,6 +458,6 @@ def _show_config_dialog(device_name: str, config_text: str):
             ui.button(
                 "Download .conf",
                 on_click=lambda: ui.download(config_text.encode(), f"{device_name}.conf"),
-            ).props("color=primary outline").classes("w-full q-mt-sm")
+            ).props("color=primary unelevated").classes("w-full q-mt-sm")
 
             ui.button("Close", on_click=dialog.close).props("flat").classes("w-full")

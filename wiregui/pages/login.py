@@ -7,6 +7,7 @@ from wiregui.auth.oidc import load_providers
 from wiregui.auth.session import authenticate_user
 from wiregui.db import async_session
 from wiregui.models.mfa_method import MFAMethod
+from wiregui.pages.style import apply_style
 from wiregui.utils.time import utcnow
 
 
@@ -14,6 +15,8 @@ from wiregui.utils.time import utcnow
 async def login_page():
     if app.storage.user.get("authenticated"):
         return ui.navigate.to("/")
+
+    apply_style()
 
     # Load OIDC providers for SSO buttons
     oidc_providers = await load_providers()
@@ -44,6 +47,7 @@ async def login_page():
                 "user_id": str(user.id),
                 "email": user.email,
                 "role": user.role,
+                "theme_preference": user.theme_preference,
             }
             ui.navigate.to("/mfa")
         else:
@@ -53,6 +57,7 @@ async def login_page():
                 user_id=str(user.id),
                 email=user.email,
                 role=user.role,
+                theme_preference=user.theme_preference,
             )
             ui.navigate.to("/")
 
@@ -79,4 +84,4 @@ async def login_page():
                     ui.button(
                         label,
                         on_click=lambda p=pid: ui.navigate.to(f"/auth/oidc/{p}"),
-                    ).props("outline").classes("w-full q-mt-xs")
+                    ).props("color=primary unelevated").classes("w-full q-mt-xs")

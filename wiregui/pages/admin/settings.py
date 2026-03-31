@@ -143,128 +143,118 @@ async def settings_page():
     with ui.column().classes("w-full p-4"):
         ui.label("Settings").classes("text-h5 q-mb-md")
 
-        with ui.tabs().classes("w-full") as tabs:
-            defaults_tab = ui.tab("Client Defaults")
-            security_tab = ui.tab("Security")
-            auth_tab = ui.tab("Authentication")
+        # === Client Defaults ===
+        with ui.card().classes("w-full"):
+            ui.label("Default Client Configuration").classes("text-subtitle1 text-bold")
+            ui.label("These defaults apply to new devices unless overridden per-device.").classes("text-caption text-grey")
+            ui.separator()
 
-        with ui.tab_panels(tabs, value=defaults_tab).classes("w-full"):
+            defaults_endpoint = ui.input(
+                "Endpoint", value=config.default_client_endpoint or "",
+                placeholder="vpn.example.com",
+            ).props("outlined dense").classes("w-full")
+            ui.label("IPv4/IPv6 address or FQDN clients connect to").classes("text-caption text-grey")
 
-            # === Client Defaults ===
-            with ui.tab_panel(defaults_tab):
-                with ui.card().classes("w-full"):
-                    ui.label("Default Client Configuration").classes("text-subtitle1 text-bold")
-                    ui.label("These defaults apply to new devices unless overridden per-device.").classes("text-caption text-grey-7")
-                    ui.separator()
+            defaults_dns = ui.input(
+                "DNS Servers", value=", ".join(config.default_client_dns),
+                placeholder="1.1.1.1, 1.0.0.1",
+            ).props("outlined dense").classes("w-full q-mt-sm")
+            ui.label("Comma-separated. Leave blank to omit.").classes("text-caption text-grey")
 
-                    defaults_endpoint = ui.input(
-                        "Endpoint", value=config.default_client_endpoint or "",
-                        placeholder="vpn.example.com",
-                    ).props("outlined dense").classes("w-full")
-                    ui.label("IPv4/IPv6 address or FQDN clients connect to").classes("text-caption text-grey-7")
+            defaults_allowed_ips = ui.input(
+                "Allowed IPs", value=", ".join(config.default_client_allowed_ips),
+                placeholder="0.0.0.0/0, ::/0",
+            ).props("outlined dense").classes("w-full q-mt-sm")
+            ui.label("CIDR ranges for split or full tunnel.").classes("text-caption text-grey")
 
-                    defaults_dns = ui.input(
-                        "DNS Servers", value=", ".join(config.default_client_dns),
-                        placeholder="1.1.1.1, 1.0.0.1",
-                    ).props("outlined dense").classes("w-full q-mt-sm")
-                    ui.label("Comma-separated. Leave blank to omit.").classes("text-caption text-grey-7")
+            with ui.row().classes("w-full gap-4 q-mt-sm"):
+                defaults_mtu = ui.input(
+                    "MTU", value=str(config.default_client_mtu),
+                    placeholder="1280",
+                ).props("outlined dense").classes("w-48")
 
-                    defaults_allowed_ips = ui.input(
-                        "Allowed IPs", value=", ".join(config.default_client_allowed_ips),
-                        placeholder="0.0.0.0/0, ::/0",
-                    ).props("outlined dense").classes("w-full q-mt-sm")
-                    ui.label("CIDR ranges for split or full tunnel.").classes("text-caption text-grey-7")
+                defaults_keepalive = ui.input(
+                    "Persistent Keepalive", value=str(config.default_client_persistent_keepalive),
+                    placeholder="25",
+                ).props("outlined dense").classes("w-48")
 
-                    with ui.row().classes("w-full gap-4 q-mt-sm"):
-                        defaults_mtu = ui.input(
-                            "MTU", value=str(config.default_client_mtu),
-                            placeholder="1280",
-                        ).props("outlined dense").classes("w-48")
+            ui.button("Save Defaults", on_click=save_defaults).props("color=primary unelevated").classes("q-mt-md")
 
-                        defaults_keepalive = ui.input(
-                            "Persistent Keepalive", value=str(config.default_client_persistent_keepalive),
-                            placeholder="25",
-                        ).props("outlined dense").classes("w-48")
+        # === Security ===
+        with ui.card().classes("w-full q-mt-lg"):
+            ui.label("Authentication & Access").classes("text-subtitle1 text-bold")
+            ui.separator()
 
-                    ui.button("Save Defaults", on_click=save_defaults).props("color=primary").classes("q-mt-md")
+            security_vpn_duration = ui.select(
+                VPN_SESSION_OPTIONS,
+                value=config.vpn_session_duration,
+                label="VPN Session Duration",
+            ).props("outlined dense").classes("w-full")
+            ui.label("How often users must re-authenticate to maintain VPN access.").classes("text-caption text-grey")
 
-            # === Security ===
-            with ui.tab_panel(security_tab):
-                with ui.card().classes("w-full"):
-                    ui.label("Authentication & Access").classes("text-subtitle1 text-bold")
-                    ui.separator()
+            ui.separator().classes("q-my-md")
 
-                    security_vpn_duration = ui.select(
-                        VPN_SESSION_OPTIONS,
-                        value=config.vpn_session_duration,
-                        label="VPN Session Duration",
-                    ).props("outlined dense").classes("w-full")
-                    ui.label("How often users must re-authenticate to maintain VPN access.").classes("text-caption text-grey-7")
+            security_local_auth = ui.switch("Local Authentication (email/password)", value=config.local_auth_enabled)
+            security_unpriv_mgmt = ui.switch("Allow Unprivileged Device Management", value=config.allow_unprivileged_device_management)
+            security_unpriv_config = ui.switch("Allow Unprivileged Device Configuration", value=config.allow_unprivileged_device_configuration)
 
-                    ui.separator().classes("q-my-md")
+            ui.separator().classes("q-my-md")
+            ui.label("SSO Behavior").classes("text-subtitle2")
+            security_disable_vpn_oidc = ui.switch("Auto-disable VPN on OIDC refresh error", value=config.disable_vpn_on_oidc_error)
 
-                    security_local_auth = ui.switch("Local Authentication (email/password)", value=config.local_auth_enabled)
-                    security_unpriv_mgmt = ui.switch("Allow Unprivileged Device Management", value=config.allow_unprivileged_device_management)
-                    security_unpriv_config = ui.switch("Allow Unprivileged Device Configuration", value=config.allow_unprivileged_device_configuration)
+            ui.button("Save Security Settings", on_click=save_security).props("color=primary unelevated").classes("q-mt-md")
 
-                    ui.separator().classes("q-my-md")
-                    ui.label("SSO Behavior").classes("text-subtitle2")
-                    security_disable_vpn_oidc = ui.switch("Auto-disable VPN on OIDC refresh error", value=config.disable_vpn_on_oidc_error)
+        # === Authentication (OIDC/SAML) ===
+        with ui.card().classes("w-full q-mt-lg"):
+            ui.label("OpenID Connect Providers").classes("text-subtitle1 text-bold")
+            ui.separator()
 
-                    ui.button("Save Security Settings", on_click=save_security).props("color=primary").classes("q-mt-md")
+            oidc_columns = [
+                {"name": "id", "label": "Config ID", "field": "id", "align": "left"},
+                {"name": "label", "label": "Label", "field": "label", "align": "left"},
+                {"name": "client_id", "label": "Client ID", "field": "client_id", "align": "left"},
+                {"name": "discovery", "label": "Discovery URI", "field": "discovery", "align": "left"},
+                {"name": "auto_create", "label": "Auto-create", "field": "auto_create", "align": "center"},
+                {"name": "actions", "label": "", "field": "id", "align": "center"},
+            ]
+            oidc_table = ui.table(columns=oidc_columns, rows=[], row_key="id").classes("w-full")
+            oidc_table.add_slot(
+                "body-cell-actions",
+                '''
+                <q-td :props="props">
+                    <q-btn flat dense icon="delete" color="negative"
+                           @click.stop="() => $parent.$emit('delete', props.row.id)" />
+                </q-td>
+                ''',
+            )
+            oidc_table.on("delete", lambda e: delete_oidc_provider(e.args))
 
-            # === Authentication (OIDC/SAML) ===
-            with ui.tab_panel(auth_tab):
-                with ui.card().classes("w-full"):
-                    ui.label("OpenID Connect Providers").classes("text-subtitle1 text-bold")
-                    ui.separator()
+            ui.button("Add OIDC Provider", icon="add", on_click=lambda: oidc_dialog.open()).props("color=primary unelevated").classes("q-mt-sm")
 
-                    oidc_columns = [
-                        {"name": "id", "label": "Config ID", "field": "id", "align": "left"},
-                        {"name": "label", "label": "Label", "field": "label", "align": "left"},
-                        {"name": "client_id", "label": "Client ID", "field": "client_id", "align": "left"},
-                        {"name": "discovery", "label": "Discovery URI", "field": "discovery", "align": "left"},
-                        {"name": "auto_create", "label": "Auto-create", "field": "auto_create", "align": "center"},
-                        {"name": "actions", "label": "", "field": "id", "align": "center"},
-                    ]
-                    oidc_table = ui.table(columns=oidc_columns, rows=[], row_key="id").classes("w-full")
-                    oidc_table.add_slot(
-                        "body-cell-actions",
-                        '''
-                        <q-td :props="props">
-                            <q-btn flat dense icon="delete" color="negative"
-                                   @click.stop="() => $parent.$emit('delete', props.row.id)" />
-                        </q-td>
-                        ''',
-                    )
-                    oidc_table.on("delete", lambda e: delete_oidc_provider(e.args))
+        with ui.card().classes("w-full q-mt-lg"):
+            ui.label("SAML Identity Providers").classes("text-subtitle1 text-bold")
+            ui.separator()
 
-                    ui.button("Add OIDC Provider", icon="add", on_click=lambda: oidc_dialog.open()).props("outline").classes("q-mt-sm")
+            saml_columns = [
+                {"name": "id", "label": "Config ID", "field": "id", "align": "left"},
+                {"name": "label", "label": "Label", "field": "label", "align": "left"},
+                {"name": "metadata", "label": "Metadata", "field": "metadata", "align": "left"},
+                {"name": "auto_create", "label": "Auto-create", "field": "auto_create", "align": "center"},
+                {"name": "actions", "label": "", "field": "id", "align": "center"},
+            ]
+            saml_table = ui.table(columns=saml_columns, rows=[], row_key="id").classes("w-full")
+            saml_table.add_slot(
+                "body-cell-actions",
+                '''
+                <q-td :props="props">
+                    <q-btn flat dense icon="delete" color="negative"
+                           @click.stop="() => $parent.$emit('delete', props.row.id)" />
+                </q-td>
+                ''',
+            )
+            saml_table.on("delete", lambda e: delete_saml_provider(e.args))
 
-                with ui.card().classes("w-full q-mt-md"):
-                    ui.label("SAML Identity Providers").classes("text-subtitle1 text-bold")
-                    ui.separator()
-
-                    saml_columns = [
-                        {"name": "id", "label": "Config ID", "field": "id", "align": "left"},
-                        {"name": "label", "label": "Label", "field": "label", "align": "left"},
-                        {"name": "metadata", "label": "Metadata", "field": "metadata", "align": "left"},
-                        {"name": "auto_create", "label": "Auto-create", "field": "auto_create", "align": "center"},
-                        {"name": "actions", "label": "", "field": "id", "align": "center"},
-                    ]
-                    saml_table = ui.table(columns=saml_columns, rows=[], row_key="id").classes("w-full")
-                    saml_table.add_slot(
-                        "body-cell-actions",
-                        '''
-                        <q-td :props="props">
-                            <q-btn flat dense icon="delete" color="negative"
-                                   @click.stop="() => $parent.$emit('delete', props.row.id)" />
-                        </q-td>
-                        ''',
-                    )
-                    saml_table.on("delete", lambda e: delete_saml_provider(e.args))
-
-                    ui.button("Add SAML Provider", icon="add", on_click=lambda: saml_dialog.open()).props("outline").classes("q-mt-sm")
+            ui.button("Add SAML Provider", icon="add", on_click=lambda: saml_dialog.open()).props("color=primary unelevated").classes("q-mt-sm")
 
     # --- SAML provider management ---
     async def save_saml_provider():
@@ -347,7 +337,7 @@ async def settings_page():
             saml_id = ui.input("Config ID", placeholder="okta-saml").props("outlined dense").classes("w-full")
             saml_label = ui.input("Label", placeholder="Sign in with Okta").props("outlined dense").classes("w-full")
             saml_metadata_input = ui.textarea("IdP Metadata (XML)").props("outlined").classes("w-full").style("min-height: 120px")
-            ui.label("Paste the full XML metadata from your identity provider.").classes("text-caption text-grey-7")
+            ui.label("Paste the full XML metadata from your identity provider.").classes("text-caption text-grey")
 
             ui.separator().classes("q-my-sm")
             ui.label("Security Options").classes("text-subtitle2")
