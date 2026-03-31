@@ -83,5 +83,5 @@ async def login_page():
                     label = provider.get("label", pid)
                     ui.button(
                         label,
-                        on_click=lambda p=pid: ui.navigate.to(f"/auth/oidc/{p}"),
+                        on_click=lambda p=pid: ui.run_javascript(f"window.location.href='/auth/oidc/{p}'"),
                     ).props("color=primary unelevated").classes("w-full q-mt-xs")

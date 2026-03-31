@@ -17,6 +17,38 @@ services:
     volumes:
       - valkey_data:/data
 
+  # Test OIDC Identity Provider — accepts any login, issues real JWTs
+  # Discovery: http://localhost:9000/test-idp/.well-known/openid-configuration
+  # Login: enter any username/password, it will issue a token
+  mock-oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    ports:
+      - "9000:9000"
+    environment:
+      SERVER_PORT: "9000"
+      JSON_CONFIG: >
+        {
+          "interactiveLogin": true,
+          "httpServer": "NettyWrapper",
+          "tokenCallbacks": [
+            {
+              "issuerId": "test-idp",
+              "tokenExpiry": 3600,
+              "requestMappings": [
+                {
+                  "requestParam": "scope",
+                  "match": "*",
+                  "claims": {
+                    "sub": "$${claim:sub}",
+                    "email": "$${claim:sub}@test.local",
+                    "name": "Test User"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+
 volumes:
   postgres_data:
   valkey_data:

@@ -463,25 +463,28 @@ async def device_detail_page(device_id: str):
 def _show_config_dialog(device_name: str, config_text: str):
     """Show a dialog with the WireGuard client configuration and QR code."""
     with ui.dialog(value=True) as dialog:
-        with ui.card().classes("w-96"):
+        with ui.card().classes("w-[700px] max-w-[90vw]"):
             ui.label(f"Config for {device_name}").classes("text-h6")
-            ui.label("Save this — the private key won't be shown again.").classes("text-caption text-negative")
+            ui.label("Save this — the private key won't be shown again.").classes("text-caption text-negative q-mb-sm")
 
-            ui.textarea(value=config_text).props("readonly outlined").classes(
-                "w-full font-mono text-xs q-mt-sm"
-            ).style("min-height: 200px")
+            ui.code(config_text, language="ini").classes("w-full")
 
             try:
-                qr = qrcode.make(config_text, image_factory=qrcode.image.svg.SvgPathImage)
+                import base64
+                qr = qrcode.make(config_text)
                 buf = io.BytesIO()
-                qr.save(buf)
-                ui.html(buf.getvalue().decode()).classes("w-full q-mt-sm").style("background: white; padding: 8px; border-radius: 8px")
+                qr.save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode()
+                with ui.row().classes("w-full justify-center q-mt-md"):
+                    ui.image(f"data:image/png;base64,{b64}").style(
+                        "width: 200px; height: 200px; border-radius: 8px"
+                    )
             except Exception:
                 ui.label("QR code generation failed").classes("text-caption text-grey")
 
-            ui.button(
-                "Download .conf",
-                on_click=lambda: ui.download(config_text.encode(), f"{device_name}.conf"),
-            ).props("color=primary unelevated").classes("w-full q-mt-sm")
-
-            ui.button("Close", on_click=dialog.close).props("flat").classes("w-full")
+            with ui.row().classes("w-full gap-2 q-mt-md"):
+                ui.button(
+                    "Download .conf",
+                    on_click=lambda: ui.download(config_text.encode(), f"{device_name}.conf"),
+                ).props("color=primary unelevated").classes("flex-grow")
+                ui.button("Close", on_click=dialog.close).props("flat")
