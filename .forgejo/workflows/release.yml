@@ -59,6 +59,9 @@ jobs:
           apt-get update && apt-get install -y --no-install-recommends bash git python3 ca-certificates
           git clone ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
           git checkout ${GITHUB_SHA}
+          git config --local http.${GITHUB_SERVER_URL}/.extraheader "AUTHORIZATION: basic $(echo -n "x-access-token:${GITHUB_TOKEN}" | base64 -w0)"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine version bump
         id: version
