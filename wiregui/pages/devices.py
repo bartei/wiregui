@@ -38,6 +38,19 @@ async def devices_page():
 
     layout()
     user_id = UUID(app.storage.user["user_id"])
+    settings = get_settings()
+
+    # Load client defaults from DB config (falls back to env vars)
+    async with async_session() as session:
+        from wiregui.models.configuration import Configuration
+        _db_cfg = (await session.execute(select(Configuration).limit(1))).scalar_one_or_none()
+    _defaults = {
+        "allowed_ips": ", ".join(_db_cfg.default_client_allowed_ips) if _db_cfg and _db_cfg.default_client_allowed_ips else settings.wg_allowed_ips,
+        "dns": ", ".join(_db_cfg.default_client_dns) if _db_cfg and _db_cfg.default_client_dns else settings.wg_dns,
+        "endpoint": _db_cfg.default_client_endpoint if _db_cfg and _db_cfg.default_client_endpoint else settings.wg_endpoint_host,
+        "mtu": str(_db_cfg.default_client_mtu) if _db_cfg else str(settings.wg_mtu),
+        "keepalive": str(_db_cfg.default_client_persistent_keepalive) if _db_cfg else str(settings.wg_persistent_keepalive),
+    }
 
     async def load_devices() -> list[Device]:
         async with async_session() as session:
@@ -141,11 +154,11 @@ async def devices_page():
         create_use_default_endpoint.value = True
         create_use_default_mtu.value = True
         create_use_default_keepalive.value = True
-        create_endpoint.value = ""
-        create_dns.value = ""
-        create_mtu.value = ""
-        create_keepalive.value = ""
-        create_allowed_ips.value = ""
+        create_allowed_ips.value = _defaults["allowed_ips"]
+        create_dns.value = _defaults["dns"]
+        create_endpoint.value = _defaults["endpoint"]
+        create_mtu.value = _defaults["mtu"]
+        create_keepalive.value = _defaults["keepalive"]
 
     # --- Delete device ---
     async def delete_device(device_id: str):
@@ -205,27 +218,27 @@ async def devices_page():
 
             with ui.grid(columns=2).classes("w-full gap-2"):
                 create_use_default_ips = ui.switch("Use default Allowed IPs", value=True)
-                create_allowed_ips = ui.input("Allowed IPs", placeholder="0.0.0.0/0, ::/0").props(
+                create_allowed_ips = ui.input("Allowed IPs", value=_defaults["allowed_ips"]).props(
                     "outlined dense"
                 ).classes("w-full").bind_enabled_from(create_use_default_ips, "value", backward=lambda v: not v)
 
                 create_use_default_dns = ui.switch("Use default DNS", value=True)
-                create_dns = ui.input("DNS Servers", placeholder="1.1.1.1, 1.0.0.1").props(
+                create_dns = ui.input("DNS Servers", value=_defaults["dns"]).props(
                     "outlined dense"
                 ).classes("w-full").bind_enabled_from(create_use_default_dns, "value", backward=lambda v: not v)
 
                 create_use_default_endpoint = ui.switch("Use default Endpoint", value=True)
-                create_endpoint = ui.input("Endpoint", placeholder="vpn.example.com").props(
+                create_endpoint = ui.input("Endpoint", value=_defaults["endpoint"]).props(
                     "outlined dense"
                 ).classes("w-full").bind_enabled_from(create_use_default_endpoint, "value", backward=lambda v: not v)
 
                 create_use_default_mtu = ui.switch("Use default MTU", value=True)
-                create_mtu = ui.input("MTU", placeholder="1280").props(
+                create_mtu = ui.input("MTU", value=_defaults["mtu"]).props(
                     "outlined dense"
                 ).classes("w-full").bind_enabled_from(create_use_default_mtu, "value", backward=lambda v: not v)
 
                 create_use_default_keepalive = ui.switch("Use default Keepalive", value=True)
-                create_keepalive = ui.input("Persistent Keepalive", placeholder="25").props(
+                create_keepalive = ui.input("Persistent Keepalive", value=_defaults["keepalive"]).props(
                     "outlined dense"
                 ).classes("w-full").bind_enabled_from(create_use_default_keepalive, "value", backward=lambda v: not v)
 
