@@ -54,12 +54,12 @@ jobs:
       new_version: ${{ steps.version.outputs.new_version }}
       skip: ${{ steps.version.outputs.skip }}
     steps:
+      - name: Install dependencies
+        run: apt-get update && apt-get install -y --no-install-recommends bash git python3
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Install dependencies
-        run: apt-get update && apt-get install -y --no-install-recommends bash git python3
 
       - name: Determine version bump
         id: version
