@@ -103,7 +103,7 @@ def test_build_client_config_no_psk():
 # --- Crypto (only if wg is installed) ---
 
 
-def test_generate_keypair():
+async def test_generate_keypair():
     """Test keypair generation — requires `wg` CLI to be installed."""
     try:
         subprocess.run(["wg", "--version"], capture_output=True, check=True)
@@ -112,7 +112,7 @@ def test_generate_keypair():
 
     from wiregui.utils.crypto import generate_keypair, generate_preshared_key
 
-    priv, pub = generate_keypair()
+    priv, pub = await generate_keypair()
     assert len(priv) == 44  # base64-encoded 32 bytes
     assert len(pub) == 44
 

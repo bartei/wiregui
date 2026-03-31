@@ -51,7 +51,7 @@ async def ensure_server_keypair() -> None:
             return  # already have keys
 
         try:
-            private_key, public_key = generate_keypair()
+            private_key, public_key = await generate_keypair()
             config.server_private_key = private_key
             config.server_public_key = public_key
             session.add(config)

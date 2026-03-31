@@ -1,28 +1,37 @@
 """WireGuard key generation and encryption utilities."""
 
+import asyncio
 import base64
 import os
-import subprocess
 
 
-def generate_private_key() -> str:
+async def generate_private_key() -> str:
     """Generate a WireGuard private key using `wg genkey`."""
-    result = subprocess.run(["wg", "genkey"], capture_output=True, text=True, check=True)
-    return result.stdout.strip()
-
-
-def derive_public_key(private_key: str) -> str:
-    """Derive a WireGuard public key from a private key using `wg pubkey`."""
-    result = subprocess.run(
-        ["wg", "pubkey"], input=private_key, capture_output=True, text=True, check=True
+    proc = await asyncio.create_subprocess_exec(
+        "wg", "genkey", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
-    return result.stdout.strip()
+    stdout, _ = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError("wg genkey failed")
+    return stdout.decode().strip()
 
 
-def generate_keypair() -> tuple[str, str]:
+async def derive_public_key(private_key: str) -> str:
+    """Derive a WireGuard public key from a private key using `wg pubkey`."""
+    proc = await asyncio.create_subprocess_exec(
+        "wg", "pubkey", stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate(input=private_key.encode())
+    if proc.returncode != 0:
+        raise RuntimeError("wg pubkey failed")
+    return stdout.decode().strip()
+
+
+async def generate_keypair() -> tuple[str, str]:
     """Generate a WireGuard keypair. Returns (private_key, public_key)."""
-    private_key = generate_private_key()
-    public_key = derive_public_key(private_key)
+    private_key = await generate_private_key()
+    public_key = await derive_public_key(private_key)
     return private_key, public_key
 
 

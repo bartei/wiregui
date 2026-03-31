@@ -1,6 +1,6 @@
 """End-to-end tests for device management UI using NiceGUI's User fixture."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from nicegui.testing import User
@@ -25,7 +25,7 @@ async def _login(user: User):
 @pytest.mark.parametrize("user", [{"storage": {}}], indirect=True)
 async def test_add_device_via_ui(user: User, test_user: UserModel):
     """Test the full flow: login → devices → add device → see it in table."""
-    with patch("wiregui.pages.devices.generate_keypair", return_value=(FAKE_PRIVATE_KEY, FAKE_PUBLIC_KEY)), \
+    with patch("wiregui.pages.devices.generate_keypair", new_callable=AsyncMock, return_value=(FAKE_PRIVATE_KEY, FAKE_PUBLIC_KEY)), \
          patch("wiregui.pages.devices.generate_preshared_key", return_value="cHJlc2hhcmVkMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="):
 
         await _login(user)
