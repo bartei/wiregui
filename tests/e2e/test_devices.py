@@ -1,45 +1,32 @@
-"""End-to-end tests for device management UI using NiceGUI's User fixture."""
+"""End-to-end tests for device management UI."""
 
-import pytest
-from nicegui.testing import User
+from playwright.async_api import Page, expect
 
 from wiregui.models.user import User as UserModel
-from tests.e2e.conftest import TEST_EMAIL, TEST_PASSWORD
+from tests.e2e.conftest import login
 
 
-async def _login(user: User):
-    """Helper to log in via the UI."""
-    await user.open("/login")
-    user.find("Email").type(TEST_EMAIL)
-    user.find("Password").type(TEST_PASSWORD)
-    user.find("Sign in").click()
-    await user.should_see("My Devices")
-
-
-@pytest.mark.parametrize("user", [{"storage": {}}], indirect=True)
-async def test_add_device_via_ui(user: User, test_user: UserModel):
+async def test_add_device_via_ui(page: Page, test_user: UserModel):
     """Test the full flow: login → devices → add device → see it in table."""
-    await _login(user)
+    await login(page)
+    await expect(page.get_by_text("My Devices")).to_be_visible(timeout=10_000)
 
-    # Open create dialog
-    user.find("Add Device").click()
-    await user.should_see("New Device")
+    await page.get_by_role("button", name="Add Device").click()
+    await expect(page.get_by_text("New Device")).to_be_visible(timeout=5_000)
 
-    # Fill device name and submit
-    user.find("Device Name").type("Test Laptop")
-    user.find("Create").click()
+    await page.locator("input[aria-label='Device Name']").fill("Test Laptop")
+    await page.get_by_role("button", name="Create").click()
 
-    # Should see config dialog with the device config
-    await user.should_see("Test Laptop")
+    # Should see config dialog with the device name
+    await expect(page.get_by_text("Config for Test Laptop")).to_be_visible(timeout=10_000)
 
 
-@pytest.mark.parametrize("user", [{"storage": {}}], indirect=True)
-async def test_add_device_requires_name(user: User, test_user: UserModel):
+async def test_add_device_requires_name(page: Page, test_user: UserModel):
     """Test that creating a device without a name shows an error."""
-    await _login(user)
+    await login(page)
+    await expect(page.get_by_text("My Devices")).to_be_visible(timeout=10_000)
 
-    # Open create dialog and submit without name
-    user.find("Add Device").click()
-    await user.should_see("New Device")
-    user.find("Create").click()
-    await user.should_see("Device name is required")
+    await page.get_by_role("button", name="Add Device").click()
+    await expect(page.get_by_text("New Device")).to_be_visible(timeout=5_000)
+    await page.get_by_role("button", name="Create").click()
+    await expect(page.get_by_text("Device name is required")).to_be_visible(timeout=5_000)

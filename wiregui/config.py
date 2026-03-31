@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from: str = "wiregui@localhost"
 
+    # IdP provisioning
+    idp_config_file: str | None = None  # path to YAML file with IdP definitions
+
     # Logging
     log_to_file: bool = True  # write timestamped log file to logs/ directory
 

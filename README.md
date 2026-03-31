@@ -84,16 +84,33 @@ All settings use the `WG_` prefix:
 | `WG_ADMIN_EMAIL` | `admin@localhost` | Initial admin email |
 | `WG_ADMIN_PASSWORD` | *(auto-generated)* | Initial admin password |
 | `WG_EXTERNAL_URL` | `http://localhost:13000` | Public-facing URL |
+| `WG_IDP_CONFIG_FILE` | *(none)* | Path to YAML file with OIDC/SAML IdP definitions |
 
 ## Testing
 
 ```bash
 # Unit + integration tests
-uv run pytest tests/ --ignore=tests/e2e -v
+uv run pytest
 
-# E2E tests (NiceGUI User fixture)
+# E2E tests (Playwright — requires running PostgreSQL, Valkey, and mock-oidc)
+docker compose up -d
 uv run pytest tests/e2e/ -v
+
+# E2E in headed mode (watch tests in a browser)
+uv run pytest tests/e2e/ --headed --slowmo 300
 ```
+
+E2E tests automatically start a WireGUI instance on port 13001 and use Playwright's async API to drive a real Chromium browser. The `--headed` flag opens a visible browser window and `--slowmo` adds a delay (in ms) between actions for debugging. The OIDC login flow tests use the `mock-oidc` service from `compose.yml`.
+
+### IdP provisioning from YAML
+
+Identity providers can be seeded at startup from a YAML file, enabling GitOps and infrastructure-as-code workflows:
+
+```bash
+WG_IDP_CONFIG_FILE=/etc/wiregui/idps.yaml uv run python -m wiregui.main
+```
+
+See `tests/e2e/test_idp_seed.py` for the YAML format and seeding behavior.
 
 ## License
 

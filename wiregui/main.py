@@ -5,7 +5,7 @@ from wiregui.api.v0 import router as api_router
 from wiregui.auth.seed import ensure_server_keypair, seed_admin
 from wiregui.config import get_settings
 from wiregui.db import init_db
-from wiregui.logging import setup_logging
+from wiregui.log_config import setup_logging
 
 # Mount REST API
 app.include_router(api_router, prefix="/api")
@@ -38,7 +38,10 @@ async def startup() -> None:
     await seed_admin()
     await ensure_server_keypair()
 
-    # Register OIDC providers from config
+    # Seed IdP providers from YAML config file (if configured), then register with authlib
+    from wiregui.auth.seed import seed_idp_providers
+    await seed_idp_providers()
+
     from wiregui.auth.oidc import register_providers
     await register_providers()
 

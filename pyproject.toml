@@ -31,12 +31,15 @@ dependencies = [
     "aiosmtplib>=3.0",
     # QR codes
     "qrcode[pil]>=8.0",
+    # YAML config
+    "pyyaml>=6.0",
     # Logging
     "loguru>=0.7.3",
 ]
 
 [dependency-groups]
 dev = [
+    "playwright>=1.58.0",
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "pytest-cov>=7.1.0",
@@ -48,4 +51,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
+# E2E tests run separately: uv run pytest tests/e2e/
+# NiceGUI's testing plugin conflicts with unit tests when loaded together
+addopts = "--ignore=tests/e2e"
 main_file = "wiregui/main.py"
