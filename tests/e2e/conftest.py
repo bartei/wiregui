@@ -5,12 +5,7 @@ from sqlmodel import select
 
 from wiregui.auth.passwords import hash_password
 from wiregui.db import async_session
-from wiregui.models.api_token import ApiToken
 from wiregui.models.configuration import Configuration
-from wiregui.models.device import Device
-from wiregui.models.mfa_method import MFAMethod
-from wiregui.models.oidc_connection import OIDCConnection
-from wiregui.models.rule import Rule
 from wiregui.models.user import User
 
 pytest_plugins = ["nicegui.testing.user_plugin"]
@@ -19,17 +14,12 @@ FAKE_SERVER_KEY = "SFake0ServerPubKey0000000000000000000000000w="
 TEST_EMAIL = "e2e-test@example.com"
 TEST_PASSWORD = "testpass123"
 
-RELATED_MODELS = (Device, Rule, MFAMethod, ApiToken, OIDCConnection)
-
-
 async def _delete_user_cascade(session, user_id):
-    """Delete a user and all related objects."""
-    for model in RELATED_MODELS:
-        for obj in (await session.execute(select(model).where(model.user_id == user_id))).scalars().all():
-            await session.delete(obj)
-    u = await session.get(User, user_id)
-    if u:
-        await session.delete(u)
+    """Delete a user and all related objects via raw SQL to avoid stale ORM cache issues."""
+    from sqlalchemy import text
+    for table in ("devices", "rules", "mfa_methods", "api_tokens", "oidc_connections"):
+        await session.execute(text(f"DELETE FROM {table} WHERE user_id = :uid"), {"uid": user_id})  # noqa: S608
+    await session.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_id})
 
 
 @pytest.fixture
