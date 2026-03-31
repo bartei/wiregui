@@ -22,7 +22,8 @@ from wiregui.models.configuration import Configuration
 from tests.e2e.conftest import FAKE_SERVER_KEY
 
 
-MOCK_OIDC_DISCOVERY = "http://localhost:9000/test-idp/.well-known/openid-configuration"
+MOCK_OIDC_HOST = os.environ.get("MOCK_OIDC_HOST", "localhost")
+MOCK_OIDC_DISCOVERY = f"http://{MOCK_OIDC_HOST}:9000/test-idp/.well-known/openid-configuration"
 
 # Separate port for the IdP-seeded app instance
 IDP_APP_PORT = 13002

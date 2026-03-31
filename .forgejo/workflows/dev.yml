@@ -6,7 +6,66 @@ on:
       - dev
 
 jobs:
+  test:
+    runs-on: docker
+    container:
+      image: python:3.13-slim
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wiregui
+          POSTGRES_PASSWORD: wiregui
+          POSTGRES_DB: wiregui
+        options: >-
+          --health-cmd "pg_isready -U wiregui"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      valkey:
+        image: valkey/valkey:8
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      mock-oidc:
+        image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+        env:
+          SERVER_PORT: "9000"
+          JSON_CONFIG: '{"interactiveLogin":true,"httpServer":"NettyWrapper","tokenCallbacks":[{"issuerId":"test-idp","tokenExpiry":3600,"requestMappings":[{"requestParam":"scope","match":"*","claims":{"sub":"$${claim:sub}","email":"$${claim:sub}@test.local","name":"Test User"}}]}]}'
+    env:
+      CI: "true"
+      WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui
+      WG_REDIS_URL: redis://valkey:6379/0
+      MOCK_OIDC_HOST: mock-oidc
+    steps:
+      - name: Install system dependencies and checkout
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            git wireguard-tools pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl
+          git clone --depth=1 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
+          git checkout ${GITHUB_SHA}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install Playwright browsers
+        run: uv run playwright install --with-deps chromium
+
+      - name: Run unit tests
+        run: uv run pytest tests/ --ignore=tests/e2e -v --tb=short
+
+      - name: Run E2E tests
+        run: |
+          uv run alembic upgrade head
+          uv run pytest tests/e2e/ -v --tb=short
+
   docker:
+    needs: test
     runs-on: docker
     container:
       image: catthehacker/ubuntu:act-latest
