@@ -1,5 +1,6 @@
 """Admin device management — view and manage all devices across all users."""
 
+import asyncio
 import io
 from uuid import UUID
 
@@ -123,22 +124,19 @@ async def admin_devices_page():
                 await session.refresh(device)
 
             logger.info("Admin created device: {} for {}", device.name, user_map.get(owner_id))
-            await on_device_created(device)
 
-            # Show config
+            # Build config and show dialog immediately — don't wait for WG/firewall
             server_pubkey = await get_server_public_key()
             config_text = build_client_config(device, private_key, server_pubkey)
 
-            try:
-                create_dialog.close()
-                _reset_create_form()
-                await refresh_table()
-                _show_config_dialog(device.name, config_text)
-            except RuntimeError:
-                pass  # Client navigated away during async work
+            create_dialog.close()
+            _reset_create_form()
+            await refresh_table()
+            _show_config_dialog(device.name, config_text)
 
-        except RuntimeError:
-            pass  # Client disconnected
+            # Configure WG peer and firewall in background
+            asyncio.create_task(on_device_created(device))
+
         except Exception as e:
             logger.error("Failed to create device: {}", e)
             try:
