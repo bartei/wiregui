@@ -34,11 +34,18 @@ jobs:
         env:
           SERVER_PORT: "9000"
           JSON_CONFIG: '{"interactiveLogin":true,"httpServer":"NettyWrapper","tokenCallbacks":[{"issuerId":"test-idp","tokenExpiry":3600,"requestMappings":[{"requestParam":"scope","match":"*","claims":{"sub":"$${claim:sub}","email":"$${claim:sub}@test.local","name":"Test User"}}]}]}'
+      mock-saml:
+        image: kenchan0130/simplesamlphp
+        env:
+          SIMPLESAMLPHP_SP_ENTITY_ID: http://localhost:13003/auth/saml/test-saml/metadata
+          SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE: http://localhost:13003/auth/saml/test-saml/callback
+          SIMPLESAMLPHP_IDP_BASE_URL: http://mock-saml:8080/simplesaml/
     env:
       CI: "true"
       WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui
       WG_REDIS_URL: redis://valkey:6379/0
       MOCK_OIDC_HOST: mock-oidc
+      MOCK_SAML_HOST: mock-saml
     steps:
       - name: Install system dependencies and checkout
         run: |

@@ -1,4 +1,4 @@
-"""Login page — email/password, MFA redirect, OIDC provider buttons."""
+"""Login page — email/password, MFA redirect, OIDC/SAML provider buttons."""
 
 from nicegui import app, ui
 from sqlmodel import select
@@ -6,6 +6,7 @@ from sqlmodel import select
 from wiregui.auth.oidc import load_providers
 from wiregui.auth.session import authenticate_user
 from wiregui.db import async_session
+from wiregui.models.configuration import Configuration
 from wiregui.models.mfa_method import MFAMethod
 from wiregui.pages.style import apply_style
 from wiregui.utils.time import utcnow
@@ -18,8 +19,12 @@ async def login_page():
 
     apply_style()
 
-    # Load OIDC providers for SSO buttons
+    # Load SSO providers for login buttons
     oidc_providers = await load_providers()
+
+    async with async_session() as session:
+        config = (await session.execute(select(Configuration).limit(1))).scalar_one_or_none()
+    saml_providers = config.saml_identity_providers if config else []
 
     async def try_login():
         user = await authenticate_user(email.value, password.value)
@@ -76,8 +81,8 @@ async def login_page():
 
             password.on("keydown.enter", try_login)
 
-            # OIDC provider buttons
-            if oidc_providers:
+            # SSO provider buttons
+            if oidc_providers or saml_providers:
                 ui.separator().classes("q-my-md")
                 ui.label("Or sign in with").classes("text-caption text-center w-full")
                 for provider in oidc_providers:
@@ -86,4 +91,11 @@ async def login_page():
                     ui.button(
                         label,
                         on_click=lambda p=pid: ui.run_javascript(f"window.location.href='/auth/oidc/{p}'"),
+                    ).props("color=primary unelevated").classes("w-full q-mt-xs")
+                for provider in saml_providers:
+                    pid = provider.get("id", "")
+                    label = provider.get("label", pid)
+                    ui.button(
+                        label,
+                        on_click=lambda p=pid: ui.run_javascript(f"window.location.href='/auth/saml/{p}'"),
                     ).props("color=primary unelevated").classes("w-full q-mt-xs")

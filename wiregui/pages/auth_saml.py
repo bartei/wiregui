@@ -101,14 +101,13 @@ async def saml_callback(provider_id: str, request: Request):
             session.add(user)
             await session.commit()
 
-            request.session["authenticated"] = True
-            request.session["user_id"] = str(user.id)
-            request.session["email"] = user.email
-            request.session["role"] = user.role
-            request.session["theme_preference"] = user.theme_preference
+            # Store auth data in Starlette session — picked up by /auth/complete
+            request.session["oidc_user_id"] = str(user.id)
+            request.session["oidc_email"] = user.email
+            request.session["oidc_role"] = user.role
 
         logger.info("SAML login: {} via {}", email, provider_id)
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/auth/complete", status_code=303)
 
     except Exception as e:
         logger.error("SAML callback failed for {}: {}", provider_id, e)

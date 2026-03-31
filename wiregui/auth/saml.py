@@ -17,7 +17,7 @@ def _build_saml_settings(provider_config: dict) -> dict:
     idp_settings = idp_data.get("idp", {})
 
     return {
-        "strict": True,
+        "strict": provider_config.get("strict", True),
         "debug": False,
         "sp": {
             "entityId": f"{base_url}/auth/saml/{provider_config['id']}/metadata",

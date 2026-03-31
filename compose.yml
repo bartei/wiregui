@@ -49,6 +49,21 @@ services:
           ]
         }
 
+  # Test SAML Identity Provider — SimpleSAMLphp as IdP
+  # IdP Metadata: http://localhost:8080/simplesaml/saml2/idp/metadata.php
+  # Admin UI: http://localhost:8080/simplesaml (admin / secret)
+  # Test users: user1/password, user2/password
+  mock-saml:
+    image: kenchan0130/simplesamlphp
+    ports:
+      - "8080:8080"
+    environment:
+      SIMPLESAMLPHP_SP_ENTITY_ID: "http://localhost:13000/auth/saml/test-saml/metadata"
+      SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE: "http://localhost:13000/auth/saml/test-saml/callback"
+      SIMPLESAMLPHP_IDP_BASE_URL: http://localhost:8080/simplesaml/
+    volumes:
+      - ./docker/mock-saml/saml20-sp-remote.php:/var/www/simplesamlphp/metadata/saml20-sp-remote.php:ro
+
 volumes:
   postgres_data:
   valkey_data:
