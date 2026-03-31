@@ -11,23 +11,28 @@ jobs:
     runs-on: docker
     container:
       image: python:3.13-slim
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wiregui
+          POSTGRES_PASSWORD: wiregui
+          POSTGRES_DB: wiregui
+        options: >-
+          --health-cmd "pg_isready -U wiregui"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     env:
       CI: "true"
-      WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@localhost/wiregui
+      WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui
     steps:
       - name: Install system dependencies and checkout
         run: |
           apt-get update && apt-get install -y --no-install-recommends \
-            git wireguard-tools pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl \
-            postgresql postgresql-client
+            git wireguard-tools pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl
           git clone --depth=1 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
           git checkout ${GITHUB_SHA}
-
-      - name: Start Postgres
-        run: |
-          pg_ctlcluster 17 main start || pg_ctlcluster 15 main start || pg_ctlcluster 16 main start
-          su - postgres -c "psql -c \"CREATE USER wiregui WITH PASSWORD 'wiregui' CREATEDB;\""
-          su - postgres -c "psql -c \"CREATE DATABASE wiregui OWNER wiregui;\""
 
       - name: Install uv
         run: pip install uv
