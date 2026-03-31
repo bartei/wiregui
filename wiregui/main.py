@@ -7,6 +7,9 @@ from wiregui.config import get_settings
 from wiregui.db import init_db
 from wiregui.log_config import setup_logging
 
+# Serve static assets (logo, images)
+app.add_static_files("/img", "img")
+
 # Mount REST API
 app.include_router(api_router, prefix="/api")
 
@@ -89,6 +92,7 @@ def main() -> None:
         host=settings.host,
         port=settings.port,
         title="WireGUI",
+        favicon="img/wiregui.svg",
         storage_secret=settings.secret_key,
         reload=True,
     )

@@ -62,6 +62,7 @@ async def login_page():
             ui.navigate.to("/")
 
     with ui.column().classes("absolute-center items-center"):
+        ui.image("/img/wiregui.svg").classes("w-20 h-20")
         ui.label("WireGUI").classes("text-h4 text-bold")
         ui.label("Sign in to your account").classes("text-subtitle1 q-mb-md")
 
