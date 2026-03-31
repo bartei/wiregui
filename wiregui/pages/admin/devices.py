@@ -128,11 +128,11 @@ async def admin_devices_page():
             # Show config
             server_pubkey = await get_server_public_key()
             config_text = build_client_config(device, private_key, server_pubkey)
-            _show_config_dialog(device.name, config_text)
 
             create_dialog.close()
             _reset_create_form()
             await refresh_table()
+            _show_config_dialog(device.name, config_text)
         except Exception as e:
             logger.error("Failed to create device: {}", e)
             ui.notify(f"Error: {e}", type="negative")
