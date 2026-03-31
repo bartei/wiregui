@@ -58,8 +58,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install bash
-        run: apt-get update && apt-get install -y --no-install-recommends bash
+      - name: Install dependencies
+        run: apt-get update && apt-get install -y --no-install-recommends bash git python3
 
       - name: Determine version bump
         id: version
@@ -204,7 +204,7 @@ jobs:
             -u "${{ github.repository_owner }}" --password-stdin
 
           # Build the image
-          docker build --network host \
+          docker build \
             --build-arg "VERSION=${VERSION}" \
             -t "${IMAGE}:${TAG}" \
             -t "${IMAGE}:${MAJOR}.${MINOR}" \
