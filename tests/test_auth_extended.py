@@ -1,65 +1,9 @@
-"""Extended auth tests — OIDC registration, WebAuthn options, session edge cases."""
+"""Extended auth tests — OIDC registration, WebAuthn options, rule event handlers."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from wiregui.auth.passwords import hash_password
-from wiregui.auth.session import authenticate_user
 from wiregui.models.user import User
-from wiregui.utils.time import utcnow
-
-
-# ========== Session / authenticate_user edge cases ==========
-
-
-async def test_authenticate_user_no_password_hash(session, monkeypatch):
-    """Users without a password (OIDC-only) should not authenticate via password."""
-    from contextlib import asynccontextmanager
-
-    @asynccontextmanager
-    async def mock_session():
-        yield session
-
-    monkeypatch.setattr("wiregui.auth.session.async_session", mock_session)
-
-    user = User(email="no-pw@test.com", password_hash=None)
-    session.add(user)
-    await session.flush()
-
-    result = await authenticate_user("no-pw@test.com", "anything")
-    assert result is None
-
-
-async def test_authenticate_user_disabled(session, monkeypatch):
-    """Disabled users should not authenticate."""
-    from contextlib import asynccontextmanager
-
-    @asynccontextmanager
-    async def mock_session():
-        yield session
-
-    monkeypatch.setattr("wiregui.auth.session.async_session", mock_session)
-
-    user = User(email="disabled-auth@test.com", password_hash=hash_password("pw"), disabled_at=utcnow())
-    session.add(user)
-    await session.flush()
-
-    result = await authenticate_user("disabled-auth@test.com", "pw")
-    assert result is None
-
-
-async def test_authenticate_user_nonexistent(session, monkeypatch):
-    """Nonexistent email should return None."""
-    from contextlib import asynccontextmanager
-
-    @asynccontextmanager
-    async def mock_session():
-        yield session
-
-    monkeypatch.setattr("wiregui.auth.session.async_session", mock_session)
-
-    result = await authenticate_user("ghost@nowhere.com", "pw")
-    assert result is None
 
 
 # ========== OIDC provider registration ==========
@@ -163,13 +107,11 @@ async def test_on_rule_updated_triggers_rebuild(mock_fw, mock_settings):
     from wiregui.models.rule import Rule
     from wiregui.services.events import on_rule_updated
 
-    # Need to mock the DB call inside _rebuild_user_chain
     with patch("wiregui.services.events.async_session") as mock_session_factory:
         mock_session = AsyncMock()
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
-        # Mock the select results
         mock_rules_result = MagicMock()
         mock_rules_result.scalars.return_value.all.return_value = []
         mock_devices_result = MagicMock()

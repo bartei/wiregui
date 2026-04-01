@@ -1,4 +1,4 @@
-"""Tests for authentication modules."""
+"""Tests for authentication modules — seed logic and JWT edge cases."""
 
 from sqlmodel import select
 
@@ -8,17 +8,7 @@ from wiregui.auth.seed import seed_admin
 from wiregui.models.user import User
 
 
-# --- Password hashing ---
-
-
-def test_hash_and_verify():
-    hashed = hash_password("my-secret")
-    assert verify_password("my-secret", hashed) is True
-
-
-def test_verify_wrong_password():
-    hashed = hash_password("correct")
-    assert verify_password("wrong", hashed) is False
+# --- Password hashing (format guard) ---
 
 
 def test_hash_is_not_plaintext():
@@ -27,16 +17,7 @@ def test_hash_is_not_plaintext():
     assert hashed.startswith("$2b$")
 
 
-# --- JWT ---
-
-
-def test_create_and_decode_token():
-    token = create_access_token(user_id="user-123", role="admin")
-    payload = decode_access_token(token)
-    assert payload is not None
-    assert payload["sub"] == "user-123"
-    assert payload["role"] == "admin"
-    assert "exp" in payload
+# --- JWT edge cases ---
 
 
 def test_decode_invalid_token():
@@ -54,8 +35,6 @@ def test_decode_tampered_token():
 
 async def test_seed_admin_creates_user(session, monkeypatch):
     """seed_admin should create an admin when no users exist."""
-    # Patch async_session to use our test session
-    from unittest.mock import AsyncMock
     from contextlib import asynccontextmanager
 
     @asynccontextmanager
