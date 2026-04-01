@@ -40,6 +40,11 @@ jobs:
           SIMPLESAMLPHP_SP_ENTITY_ID: http://localhost:13003/auth/saml/test-saml/metadata
           SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE: http://localhost:13003/auth/saml/test-saml/callback
           SIMPLESAMLPHP_IDP_BASE_URL: http://mock-saml:8080/simplesaml/
+        options: >-
+          --health-cmd "curl -sf http://localhost:8080/simplesaml/ || wget -q -O /dev/null http://localhost:8080/simplesaml/ || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       CI: "true"
       WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui

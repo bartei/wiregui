@@ -140,7 +140,7 @@ async def test_saml_redirect_to_idp(app_with_saml, page: Page):
     """Clicking SAML login redirects to the SimpleSAMLphp IdP login page."""
     await page.goto(f"{SAML_APP_BASE}/auth/saml/test-saml")
     # Should redirect to the SimpleSAMLphp SSO service
-    await page.wait_for_url(f"**{MOCK_SAML_HOST}:8080/simplesaml/**", timeout=10_000)
+    await page.wait_for_url(f"**{MOCK_SAML_HOST}:8080/simplesaml/**", timeout=30_000)
 
 
 async def test_saml_sp_metadata_endpoint(app_with_saml, page: Page):
@@ -155,7 +155,7 @@ async def test_saml_sp_metadata_endpoint(app_with_saml, page: Page):
 async def test_full_saml_login_flow(app_with_saml, page: Page):
     """Full SAML SSO flow: app → IdP login → callback → authenticated."""
     await page.goto(f"{SAML_APP_BASE}/auth/saml/test-saml")
-    await page.wait_for_url(f"**{MOCK_SAML_HOST}:8080/simplesaml/**", timeout=10_000)
+    await page.wait_for_url(f"**{MOCK_SAML_HOST}:8080/simplesaml/**", timeout=30_000)
 
     # SimpleSAMLphp login form
     await page.locator("input[name='username']").fill("user1")
