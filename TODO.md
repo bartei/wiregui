@@ -38,24 +38,26 @@ Separate Python process dedicated to high-frequency WireGuard stats collection, 
 - [x] Web app spawns collector as subprocess when `WG_METRICS_ENABLED=true`
 - [x] Web app terminates collector on shutdown
 
-### Phase 3: VictoriaMetrics metrics
+### Phase 3: VictoriaMetrics metrics ✅
 
-Metrics to push (Prometheus exposition format):
-- [ ] `wiregui_peer_rx_bytes{public_key, user_email, device_name}` — counter
-- [ ] `wiregui_peer_tx_bytes{public_key, user_email, device_name}` — counter
-- [ ] `wiregui_peer_latest_handshake_seconds{public_key, user_email, device_name}` — gauge
-- [ ] `wiregui_peer_connected{public_key, user_email, device_name}` — 1 if handshake < 180s, else 0
-- [ ] `wiregui_peers_total` — gauge, count of active peers
+All metrics implemented in `collector.py` and verified by integration tests:
+- [x] `wiregui_peer_rx_bytes{public_key, user_email, device_name}` — counter
+- [x] `wiregui_peer_tx_bytes{public_key, user_email, device_name}` — counter
+- [x] `wiregui_peer_latest_handshake_seconds{public_key, user_email, device_name}` — gauge
+- [x] `wiregui_peer_connected{public_key, user_email, device_name}` — 1 if handshake < 180s, else 0
+- [x] `wiregui_peers_total` — gauge, count of active peers
 
 ### Phase 4: UI improvements
 
-- [ ] Reduce UI timer from 30s to 10s on device pages (devices.py, admin/devices.py)
-- [ ] Add connection status indicator (green/yellow/red dot) based on handshake age
+- [x] Reduce UI timer from 30s to 5s on all device pages (devices.py, admin/devices.py, detail page)
+- [x] Add connection status indicator (green/yellow/red dot) based on handshake age
   - Green: handshake < 2 min
   - Yellow: handshake < 5 min
   - Red: no recent handshake or never connected
-- [ ] Add traffic rate display (bytes/sec computed from delta between polls)
-- [ ] Device detail page: mini traffic chart (query VictoriaMetrics if available, else show last-known values)
+- [x] Status column in both user and admin device tables
+- [x] Status badge on device detail page (live-updating)
+- [x] Add traffic rate display (RX/s, TX/s computed from delta between 5s polls)
+- [x] Device detail page: live ECharts traffic rate chart (RX/s + TX/s area lines, 60-point rolling window, auto-scaled axis with human-readable byte formatting)
 
 ### Phase 5: Infrastructure ✅
 
