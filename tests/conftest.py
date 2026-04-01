@@ -1,11 +1,9 @@
 """Shared test fixtures — async DB session using a test database.
 
-The module-level code below replaces ``wiregui.db.engine`` and
-``wiregui.db.async_session`` with instances pointing at the **test** database
-*before* any test (or other module) can grab a reference to the originals.
-This means every ``from wiregui.db import async_session`` — whether in test
-files or in production code like ``wiregui.utils.server_key`` — will get the
-test-database session maker.
+Unit tests use the ``session`` fixture, which provides a per-test
+savepoint-isolated session on a dedicated test engine.  E2E tests do NOT
+use this fixture and are therefore unaffected — they keep using the real
+``wiregui.db.async_session`` that talks to the app's database.
 """
 
 import os
@@ -13,10 +11,9 @@ from collections.abc import AsyncGenerator
 
 import pytest_asyncio
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlmodel import SQLModel
 
-import wiregui.db as _db_module
 from wiregui.config import get_settings
 
 # All models must be imported so SQLModel.metadata knows about them
@@ -60,21 +57,14 @@ def _ensure_test_db_sync():
 
 _ensure_test_db_sync()
 
-# ---------------------------------------------------------------------------
-# Replace the production engine/session in wiregui.db at import time so that
-# every module that does ``from wiregui.db import async_session`` picks up the
-# test database.  This MUST happen before test modules are collected (which
-# triggers their top-level imports).
-# ---------------------------------------------------------------------------
+# Test engine — only used by the ``session`` fixture and unit tests.
+# NOT assigned to wiregui.db so e2e tests are unaffected.
 _test_engine = create_async_engine(TEST_DATABASE_URL)
-_test_session_factory = async_sessionmaker(_test_engine, expire_on_commit=False)
-_db_module.engine = _test_engine
-_db_module.async_session = _test_session_factory
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
-async def _setup_test_tables():
-    """Create all tables once at the start of the test session, drop at end."""
+@pytest_asyncio.fixture(scope="session")
+async def _test_tables():
+    """Create all tables once per test session, drop at end."""
     async with _test_engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
     yield
@@ -84,7 +74,7 @@ async def _setup_test_tables():
 
 
 @pytest_asyncio.fixture
-async def session() -> AsyncGenerator[AsyncSession]:
+async def session(_test_tables) -> AsyncGenerator[AsyncSession]:
     """Per-test session with transaction isolation.
 
     The session is bound to a connection-level transaction that is always
