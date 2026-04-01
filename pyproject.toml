@@ -43,6 +43,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "pytest-cov>=7.1.0",
+    "python-semantic-release>=9.0",
     "respx>=0.22.0",
 ]
 
@@ -55,3 +56,37 @@ testpaths = ["tests"]
 # NiceGUI's testing plugin conflicts with unit tests when loaded together
 addopts = "--ignore=tests/e2e"
 main_file = "wiregui/main.py"
+
+# ---------------------------------------------------------------------------
+# Semantic Release
+# ---------------------------------------------------------------------------
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+tag_format = "v{version}"
+commit_message = "chore(release): {version}"
+build_command = ""
+major_on_zero = false
+
+[tool.semantic_release.branches.main]
+match = "(main|master)"
+prerelease = false
+
+[tool.semantic_release.branches.dev]
+match = "dev"
+prerelease = true
+prerelease_token = "rc"
+
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+    "^chore\\(release\\):",
+]
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.remote]
+type = "gitea"
+token = { env = "GITHUB_TOKEN" }
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = false

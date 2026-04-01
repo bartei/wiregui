@@ -29,28 +29,10 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
-      mock-oidc:
-        image: ghcr.io/navikt/mock-oauth2-server:2.1.10
-        env:
-          SERVER_PORT: "9000"
-          JSON_CONFIG: '{"interactiveLogin":true,"httpServer":"NettyWrapper","tokenCallbacks":[{"issuerId":"test-idp","tokenExpiry":3600,"requestMappings":[{"requestParam":"scope","match":"*","claims":{"sub":"$${claim:sub}","email":"$${claim:sub}@test.local","name":"Test User"}}]}]}'
-      mock-saml:
-        image: kenchan0130/simplesamlphp
-        env:
-          SIMPLESAMLPHP_SP_ENTITY_ID: http://localhost:13003/auth/saml/test-saml/metadata
-          SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE: http://localhost:13003/auth/saml/test-saml/callback
-          SIMPLESAMLPHP_IDP_BASE_URL: http://mock-saml:8080/simplesaml/
-        options: >-
-          --health-cmd "curl -sf http://localhost:8080/simplesaml/ || wget -q -O /dev/null http://localhost:8080/simplesaml/ || exit 1"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
       CI: "true"
       WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui
       WG_REDIS_URL: redis://valkey:6379/0
-      MOCK_OIDC_HOST: mock-oidc
-      MOCK_SAML_HOST: mock-saml
     steps:
       - name: Install system dependencies and checkout
         run: |
@@ -70,15 +52,55 @@ jobs:
       - name: Run unit tests
         run: uv run pytest tests/ --ignore=tests/e2e --ignore=tests/integration -v --tb=short
 
-      # E2E tests disabled in CI — pass locally but fail in container
-      # environment (stale DB reads, Playwright DNS issues). See TODO.md.
-      # - name: Install Playwright browsers
-      #   run: uv run playwright install --with-deps chromium
-      # - name: Run E2E tests
-      #   run: uv run pytest tests/e2e/ -v --tb=short
+  release:
+    needs: test
+    runs-on: docker
+    container:
+      image: python:3.13-slim
+    outputs:
+      new_version: ${{ steps.semrel.outputs.new_version }}
+      skip: ${{ steps.semrel.outputs.skip }}
+    steps:
+      - name: Install dependencies and checkout
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          git clone ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
+          git checkout ${GITHUB_SHA}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "Forgejo Actions"
+          git config user.email "noreply@forge.provvedo.com"
+          git config --local http.${GITHUB_SERVER_URL}/.extraheader "AUTHORIZATION: basic $(echo -n "x-access-token:${GITHUB_TOKEN}" | base64 -w0)"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv and semantic-release
+        run: |
+          pip install uv
+          uv sync --group dev
+
+      - name: Semantic release (rc)
+        id: semrel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OUTPUT=$(uv run semantic-release version --print 2>/dev/null || echo "")
+          if [ -z "$OUTPUT" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No release needed"
+          else
+            uv run semantic-release version
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "new_version=${OUTPUT}" >> "$GITHUB_OUTPUT"
+            echo "Released v${OUTPUT}"
+          fi
 
   docker:
-    needs: test
+    needs: release
+    if: needs.release.outputs.skip != 'true'
     runs-on: docker
     container:
       image: catthehacker/ubuntu:act-latest
@@ -87,20 +109,14 @@ jobs:
       - name: Checkout repository
         run: |
           git clone ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git -b dev .
-          git fetch origin main --tags
+          git fetch origin --tags
 
       - name: Build and push pre-release image
         shell: bash
         env:
           REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: |
-          # Derive version from latest tag on main: v1.2.3 -> 1.2.3.dev0, .dev1, etc.
-          LATEST_TAG=$(git describe --tags --abbrev=0 origin/main 2>/dev/null || echo "v0.0.0")
-          BASE_VERSION="${LATEST_TAG#v}"
-          # Count commits on dev since that tag
-          DEV_N=$(git rev-list --count "${LATEST_TAG}..HEAD" 2>/dev/null || echo "0")
-          VERSION="${BASE_VERSION}.dev${DEV_N}"
-
+          VERSION="${{ needs.release.outputs.new_version }}"
           REGISTRY=$(echo "${{ github.server_url }}" | sed 's|https://||; s|http://||')
           IMAGE="${REGISTRY}/${{ github.repository_owner }}/wiregui"
 
