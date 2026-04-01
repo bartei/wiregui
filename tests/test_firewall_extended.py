@@ -8,6 +8,7 @@ from wiregui.services.firewall import (
     _nft,
     _nft_batch,
     add_device_jump_rule,
+    rebuild_all_rules,
     setup_base_tables,
     setup_masquerade,
     apply_peer_to_peer_policy,
@@ -204,3 +205,62 @@ async def test_get_ruleset_returns_fallback_on_error(mock_nft):
     mock_nft.side_effect = RuntimeError("nft not found")
     result = await get_ruleset()
     assert "not available" in result
+
+
+# ========== rebuild_all_rules — orphan cleanup ==========
+
+
+@patch("wiregui.services.firewall._nft_batch", new_callable=AsyncMock)
+@patch("wiregui.services.firewall._list_user_chains", new_callable=AsyncMock)
+async def test_rebuild_removes_orphaned_user_chains(mock_list, mock_batch):
+    """Orphaned user chains (in nft but not in DB) should be flushed and deleted."""
+    mock_list.return_value = {"user_aaaa00000000", "user_bbbb00000000"}
+
+    # Only user_aaaa is still in the DB
+    await rebuild_all_rules([{
+        "user_id": "aaaa0000-0000-0000-0000-000000000000",
+        "devices": [{"ipv4": "10.0.0.2", "ipv6": None}],
+        "rules": [],
+    }])
+
+    batch_cmds = mock_batch.call_args[0][0]
+    batch_text = "\n".join(batch_cmds)
+    # user_bbbb should be flushed and deleted
+    assert "flush chain inet wiregui user_bbbb00000000" in batch_text
+    assert "delete chain inet wiregui user_bbbb00000000" in batch_text
+    # user_aaaa should NOT be deleted
+    assert "delete chain inet wiregui user_aaaa00000000" not in batch_text
+
+
+@patch("wiregui.services.firewall._nft_batch", new_callable=AsyncMock)
+@patch("wiregui.services.firewall._list_user_chains", new_callable=AsyncMock)
+async def test_rebuild_with_no_devices_clears_forward_and_orphans(mock_list, mock_batch):
+    """With zero devices, forward chain should be flushed and all user chains removed."""
+    mock_list.return_value = {"user_aaaa00000000", "user_bbbb00000000"}
+
+    await rebuild_all_rules([])
+
+    batch_cmds = mock_batch.call_args[0][0]
+    batch_text = "\n".join(batch_cmds)
+    # Forward chain must be flushed even with no devices
+    assert "flush chain inet wiregui forward" in batch_text
+    # Both orphans removed
+    assert "delete chain inet wiregui user_aaaa00000000" in batch_text
+    assert "delete chain inet wiregui user_bbbb00000000" in batch_text
+
+
+@patch("wiregui.services.firewall._nft_batch", new_callable=AsyncMock)
+@patch("wiregui.services.firewall._list_user_chains", new_callable=AsyncMock)
+async def test_rebuild_no_orphans_no_deletions(mock_list, mock_batch):
+    """When all nft chains match the DB, no deletions should occur."""
+    mock_list.return_value = {"user_aaaa00000000"}
+
+    await rebuild_all_rules([{
+        "user_id": "aaaa0000-0000-0000-0000-000000000000",
+        "devices": [{"ipv4": "10.0.0.2", "ipv6": None}],
+        "rules": [],
+    }])
+
+    batch_cmds = mock_batch.call_args[0][0]
+    batch_text = "\n".join(batch_cmds)
+    assert "delete chain" not in batch_text

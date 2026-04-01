@@ -83,8 +83,7 @@ async def _reconcile_firewall(devices: list[Device], rules: list[Rule]) -> None:
             ],
         })
 
-    if entries:
-        try:
-            await firewall.rebuild_all_rules(entries)
-        except Exception as e:
-            logger.error("Reconcile: firewall rebuild failed: {}", e)
+    try:
+        await firewall.rebuild_all_rules(entries)
+    except Exception as e:
+        logger.error("Reconcile: firewall rebuild failed: {}", e)
