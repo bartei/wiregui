@@ -67,9 +67,9 @@ test-e2e:
 	uv run pytest tests/e2e/ -v --tb=short
 
 test-e2e-headed:
-	uv run pytest tests/e2e/ --headed --slowmo 300 -v --tb=short
+	uv run pytest tests/e2e/ --headed --slowmo 100 -v --tb=short
 
-test: test-unit test-e2e
+test: test-stack-up test-unit test-e2e
 
 # ---------------------------------------------------------------------------
 # Integration test stack (real WireGuard + mock clients + VictoriaMetrics)
@@ -85,7 +85,7 @@ test-stack-up: test-stack-seed
 
 test-stack-seed:
 	@echo "[*] Starting infrastructure..."
-	docker compose up -d postgres valkey victoriametrics
+	docker compose up -d postgres valkey victoriametrics mock-oidc mock-saml
 	@echo "[*] Waiting for Postgres..."
 	@until docker compose exec -T postgres pg_isready -U wiregui > /dev/null 2>&1; do sleep 1; done
 	@echo "[*] Running migrations..."

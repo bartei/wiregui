@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     idp_config_file: str | None = None  # path to YAML file with IdP definitions
 
     # Logging
-    log_to_file: bool = True  # write timestamped log file to logs/ directory
+    log_to_file: bool = False  # write timestamped log file to logs/ directory
 
     # App
     host: str = "0.0.0.0"
