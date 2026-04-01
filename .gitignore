@@ -6,4 +6,3 @@ __pycache__/
 logs/
 .idea/
 .coverage
-docker/mock-clients/configs/
