@@ -1,8 +1,6 @@
 """Tests for REST API endpoints and token auth."""
 
-import hashlib
-
-from wiregui.auth.api_token import generate_api_token, resolve_bearer_token
+from wiregui.auth.api_token import _token_hmac, generate_api_token, resolve_bearer_token
 from wiregui.auth.passwords import hash_password
 from wiregui.models.api_token import ApiToken
 from wiregui.models.user import User
@@ -15,7 +13,7 @@ from wiregui.utils.time import utcnow
 def test_generate_api_token():
     plaintext, token_hash = generate_api_token()
     assert len(plaintext) > 20
-    assert token_hash == hashlib.sha512(plaintext.encode()).hexdigest()
+    assert token_hash == _token_hmac(plaintext)
 
 
 def test_generate_api_token_unique():
