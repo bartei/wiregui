@@ -93,17 +93,11 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    container:
-      image: node:20-slim
     outputs:
       new_tag: ${{ steps.version.outputs.new_tag }}
       new_version: ${{ steps.version.outputs.new_version }}
       skip: ${{ steps.version.outputs.skip }}
     steps:
-      - name: Install dependencies
-        run: |
-          apt-get update && apt-get install -y --no-install-recommends bash git python3 ca-certificates
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
