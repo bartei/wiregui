@@ -41,6 +41,9 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Install Playwright browsers
+        run: uv run playwright install --with-deps chromium
+
       - name: Run unit tests
         run: uv run pytest tests/ --ignore=tests/e2e -v --tb=short
 
