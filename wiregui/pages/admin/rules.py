@@ -166,13 +166,11 @@ async def rules_page():
     async def show_nft_rules():
         ruleset = await get_ruleset()
         with ui.dialog(value=True) as dlg:
-            with ui.card().classes("w-[800px]"):
+            with ui.card().classes("w-[900px] max-w-[90vw]"):
                 ui.label("nftables Ruleset").classes("text-subtitle1 text-bold")
                 ui.label("Current system firewall rules for troubleshooting.").classes("text-caption text-grey")
                 ui.separator()
-                ui.textarea(value=ruleset).props("readonly outlined").classes(
-                    "w-full font-mono text-xs"
-                ).style("min-height: 400px; white-space: pre")
+                ui.code(ruleset, language="bash").classes("w-full")
                 with ui.row().classes("w-full justify-end q-mt-sm"):
                     ui.button("Close", on_click=dlg.close).props("flat")
 

@@ -70,39 +70,40 @@ async def account_page():
                 ui.label("Rules:").classes("text-bold")
                 ui.label(str(rule_count))
 
-        # ===== Change Password =====
-        with ui.card().classes("w-full q-mt-md"):
-            ui.label("Change Password").classes("text-subtitle1 text-bold")
-            ui.separator()
+        # ===== Change Password (only for users with a local password) =====
+        if user.password_hash:
+            with ui.card().classes("w-full q-mt-md"):
+                ui.label("Change Password").classes("text-subtitle1 text-bold")
+                ui.separator()
 
-            cur = ui.input("Current Password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full")
-            npw = ui.input("New Password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full q-mt-sm")
-            cpw = ui.input("Confirm Password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full q-mt-sm")
+                cur = ui.input("Current Password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full")
+                npw = ui.input("New Password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full q-mt-sm")
+                cpw = ui.input("Confirm Password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full q-mt-sm")
 
-            async def save_pw():
-                if not cur.value or not npw.value:
-                    ui.notify("All fields required", type="negative")
-                    return
-                if npw.value != cpw.value:
-                    ui.notify("Passwords don't match", type="negative")
-                    return
-                if len(npw.value) < 8:
-                    ui.notify("Min 8 characters", type="negative")
-                    return
-                async with async_session() as session:
-                    u = await session.get(User, user_id)
-                    if not verify_password(cur.value, u.password_hash):
-                        ui.notify("Wrong current password", type="negative")
+                async def save_pw():
+                    if not cur.value or not npw.value:
+                        ui.notify("All fields required", type="negative")
                         return
-                    u.password_hash = hash_password(npw.value)
-                    session.add(u)
-                    await session.commit()
-                ui.notify("Password changed", type="positive")
-                cur.value = ""
-                npw.value = ""
-                cpw.value = ""
+                    if npw.value != cpw.value:
+                        ui.notify("Passwords don't match", type="negative")
+                        return
+                    if len(npw.value) < 8:
+                        ui.notify("Min 8 characters", type="negative")
+                        return
+                    async with async_session() as session:
+                        u = await session.get(User, user_id)
+                        if not verify_password(cur.value, u.password_hash):
+                            ui.notify("Wrong current password", type="negative")
+                            return
+                        u.password_hash = hash_password(npw.value)
+                        session.add(u)
+                        await session.commit()
+                    ui.notify("Password changed", type="positive")
+                    cur.value = ""
+                    npw.value = ""
+                    cpw.value = ""
 
-            ui.button("Update Password", on_click=save_pw).props("color=primary unelevated").classes("q-mt-md")
+                ui.button("Update Password", on_click=save_pw).props("color=primary unelevated").classes("q-mt-md")
 
         # ===== Connected SSO Providers =====
         with ui.card().classes("w-full q-mt-md"):

@@ -20,6 +20,7 @@ RUN uv sync --no-dev --frozen 2>/dev/null || uv sync --no-dev
 COPY wiregui/ wiregui/
 COPY alembic/ alembic/
 COPY alembic.ini ./
+COPY img/ img/
 
 FROM python:3.13-slim AS runner
 
@@ -34,6 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/wiregui /app/wiregui
+COPY --from=builder /app/img /app/img
 COPY --from=builder /app/alembic /app/alembic
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 COPY --from=builder /app/pyproject.toml /app/pyproject.toml

@@ -1,4 +1,4 @@
-"""Tests for TOTP MFA functionality."""
+"""Tests for TOTP MFA — URI format, edge cases, QR generation, DB relationships."""
 
 import pyotp
 
@@ -12,22 +12,7 @@ from wiregui.models.mfa_method import MFAMethod
 from wiregui.models.user import User
 
 
-# --- TOTP secret generation ---
-
-
-def test_generate_secret():
-    secret = generate_totp_secret()
-    assert len(secret) == 32  # base32 encoded
-    assert secret.isalpha() or any(c.isdigit() for c in secret)
-
-
-def test_generate_secret_unique():
-    s1 = generate_totp_secret()
-    s2 = generate_totp_secret()
-    assert s1 != s2
-
-
-# --- TOTP URI ---
+# --- TOTP URI format ---
 
 
 def test_get_totp_uri():
@@ -43,19 +28,7 @@ def test_get_totp_uri_custom_issuer():
     assert "issuer=MyVPN" in uri
 
 
-# --- TOTP verification ---
-
-
-def test_verify_valid_code():
-    secret = generate_totp_secret()
-    totp = pyotp.TOTP(secret)
-    code = totp.now()
-    assert verify_totp_code(secret, code) is True
-
-
-def test_verify_invalid_code():
-    secret = generate_totp_secret()
-    assert verify_totp_code(secret, "000000") is False
+# --- TOTP verification edge cases ---
 
 
 def test_verify_wrong_secret():
@@ -80,34 +53,7 @@ def test_generate_qr_svg():
     assert "</svg>" in svg
 
 
-# --- MFA method model integration ---
-
-
-async def test_create_totp_method(session):
-    user = User(email="mfa-test@example.com")
-    session.add(user)
-    await session.flush()
-
-    secret = generate_totp_secret()
-    method = MFAMethod(
-        name="My Phone",
-        type="totp",
-        payload={"secret": secret},
-        user_id=user.id,
-    )
-    session.add(method)
-    await session.flush()
-
-    from sqlmodel import select
-    fetched = (await session.execute(
-        select(MFAMethod).where(MFAMethod.user_id == user.id)
-    )).scalar_one()
-
-    assert fetched.name == "My Phone"
-    assert fetched.type == "totp"
-    stored_secret = fetched.payload["secret"]
-    code = pyotp.TOTP(stored_secret).now()
-    assert verify_totp_code(stored_secret, code) is True
+# --- MFA method DB relationships ---
 
 
 async def test_user_multiple_mfa_methods(session):

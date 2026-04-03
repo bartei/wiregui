@@ -60,12 +60,15 @@ async def devices_page():
             return list(result.scalars().all())
 
     async def refresh_table():
+        from wiregui.utils.time import connection_status
         devices = await load_devices()
         table.rows = [
             {
                 "id": str(d.id),
                 "name": d.name,
                 "description": d.description or "",
+                "status_color": connection_status(d.latest_handshake)[0],
+                "status_label": connection_status(d.latest_handshake)[1],
                 "ipv4": d.ipv4 or "-",
                 "ipv6": d.ipv6 or "-",
                 "public_key": d.public_key[:16] + "...",
@@ -173,7 +176,8 @@ async def devices_page():
         await refresh_table()
 
     def on_row_click(e):
-        ui.navigate.to(f"/devices/{e.args['id']}")
+        row = e.args[1] if isinstance(e.args, list) else e.args
+        ui.navigate.to(f"/devices/{row['id']}")
 
     # --- Page content ---
     with ui.column().classes("w-full p-4"):
@@ -182,6 +186,7 @@ async def devices_page():
             ui.button("Add Device", icon="add", on_click=lambda: create_dialog.open()).props("color=primary")
 
         columns = [
+            {"name": "status", "label": "", "field": "status_label", "align": "center"},
             {"name": "name", "label": "Name", "field": "name", "align": "left", "sortable": True},
             {"name": "ipv4", "label": "IPv4", "field": "ipv4", "align": "left"},
             {"name": "ipv6", "label": "IPv6", "field": "ipv6", "align": "left"},
@@ -193,6 +198,15 @@ async def devices_page():
         ]
         table = ui.table(columns=columns, rows=[], row_key="id").classes("w-full")
         table.on("rowClick", on_row_click)
+        table.add_slot(
+            "body-cell-status",
+            '''
+            <q-td :props="props">
+                <q-badge :color="props.row.status_color" rounded class="q-mr-sm" />
+                <span class="text-caption">{{ props.row.status_label }}</span>
+            </q-td>
+            ''',
+        )
         table.add_slot(
             "body-cell-actions",
             '''
@@ -248,8 +262,7 @@ async def devices_page():
 
     await refresh_table()
 
-    # Auto-refresh stats every 30 seconds
-    ui.timer(30, refresh_table)
+    ui.timer(5, refresh_table)
 
 
 @ui.page("/devices/{device_id}")
@@ -260,9 +273,10 @@ async def device_detail_page(device_id: str):
     layout()
     user_id = UUID(app.storage.user["user_id"])
 
+    role = app.storage.user.get("role", "")
     async with async_session() as sess:
         device = await sess.get(Device, UUID(device_id))
-        if not device or device.user_id != user_id:
+        if not device or (device.user_id != user_id and role != "admin"):
             ui.label("Device not found").classes("text-h5 text-negative p-4")
             return
 
@@ -341,32 +355,133 @@ async def device_detail_page(device_id: str):
         # Traffic stats (live-updating)
         with ui.card().classes("w-full q-mt-md"):
             ui.label("Traffic Stats").classes("text-subtitle1 text-bold")
-            ui.label("Auto-refreshes every 30s").classes("text-caption text-grey")
             ui.separator()
-            with ui.grid(columns=2).classes("w-full gap-2 q-pa-sm"):
+            from wiregui.utils.time import connection_status
+            _color, _label = connection_status(device.latest_handshake)
+            with ui.row().classes("items-center gap-2 q-pa-sm"):
+                stat_badge = ui.badge("", color=_color).props("rounded")
+                stat_status = ui.label(_label).classes("text-caption")
+
+            with ui.grid(columns=3).classes("w-full gap-2 q-pa-sm"):
                 ui.label("RX:").classes("text-bold")
                 stat_rx = ui.label(_format_bytes(device.rx_bytes))
+                stat_rx_rate = ui.label("").classes("text-caption text-grey")
 
                 ui.label("TX:").classes("text-bold")
                 stat_tx = ui.label(_format_bytes(device.tx_bytes))
+                stat_tx_rate = ui.label("").classes("text-caption text-grey")
 
                 ui.label("Last Handshake:").classes("text-bold")
                 stat_handshake = ui.label(str(device.latest_handshake)[:19] if device.latest_handshake else "-")
+                ui.label("")  # spacer
 
                 ui.label("Remote IP:").classes("text-bold")
                 stat_remote = ui.label(device.remote_ip or "-")
+                ui.label("")  # spacer
+
+        # Traffic chart
+        MAX_CHART_POINTS = 60
+        _chart_times: list[str] = []
+        _chart_rx: list[float] = []
+        _chart_tx: list[float] = []
+
+        with ui.card().classes("w-full q-mt-md"):
+            ui.label("Traffic Rate").classes("text-subtitle1 text-bold")
+            ui.separator()
+            traffic_chart = ui.echart({
+                "tooltip": {
+                    "trigger": "axis",
+                    ":valueFormatter": """(v) => {
+                        if (v >= 1048576) return (v / 1048576).toFixed(1) + ' MB/s';
+                        if (v >= 1024) return (v / 1024).toFixed(1) + ' KB/s';
+                        return v.toFixed(0) + ' B/s';
+                    }""",
+                },
+                "legend": {"data": ["RX/s", "TX/s"], "right": 20, "top": 5},
+                "xAxis": {"type": "category", "data": [], "boundaryGap": False},
+                "yAxis": {
+                    "type": "value",
+                    "axisLabel": {
+                        ":formatter": """(v) => {
+                            if (v >= 1073741824) return (v / 1073741824).toFixed(1) + ' GB/s';
+                            if (v >= 1048576) return (v / 1048576).toFixed(1) + ' MB/s';
+                            if (v >= 1024) return (v / 1024).toFixed(1) + ' KB/s';
+                            return v.toFixed(0) + ' B/s';
+                        }""",
+                    },
+                },
+                "series": [
+                    {
+                        "name": "RX/s",
+                        "type": "line",
+                        "smooth": True,
+                        "symbol": "none",
+                        "areaStyle": {"opacity": 0.15},
+                        "lineStyle": {"width": 2},
+                        "itemStyle": {"color": "#3598C3"},
+                        "data": [],
+                    },
+                    {
+                        "name": "TX/s",
+                        "type": "line",
+                        "smooth": True,
+                        "symbol": "none",
+                        "areaStyle": {"opacity": 0.15},
+                        "lineStyle": {"width": 2},
+                        "itemStyle": {"color": "#5AA6B9"},
+                        "data": [],
+                    },
+                ],
+                "grid": {"left": 60, "right": 20, "top": 40, "bottom": 30},
+            }).classes("w-full").style("height: 250px")
+
+        _prev_rx = device.rx_bytes or 0
+        _prev_tx = device.tx_bytes or 0
+        _prev = {"rx": _prev_rx, "tx": _prev_tx}
 
         async def refresh_stats():
+            from wiregui.utils.time import connection_status
+            from datetime import datetime
             async with async_session() as session:
                 d = await session.get(Device, UUID(device_id))
                 if not d:
                     return
+
+                # Compute rates
+                cur_rx = d.rx_bytes or 0
+                cur_tx = d.tx_bytes or 0
+                rx_rate = max(0, (cur_rx - _prev["rx"]) / 5)
+                tx_rate = max(0, (cur_tx - _prev["tx"]) / 5)
+                _prev["rx"] = cur_rx
+                _prev["tx"] = cur_tx
+
+                # Update labels
                 stat_rx.text = _format_bytes(d.rx_bytes)
                 stat_tx.text = _format_bytes(d.tx_bytes)
+                stat_rx_rate.text = f"({_format_bytes(int(rx_rate))}/s)"
+                stat_tx_rate.text = f"({_format_bytes(int(tx_rate))}/s)"
                 stat_handshake.text = str(d.latest_handshake)[:19] if d.latest_handshake else "-"
                 stat_remote.text = d.remote_ip or "-"
+                color, label = connection_status(d.latest_handshake)
+                stat_badge.props(f'color={color}')
+                stat_status.text = label
 
-        ui.timer(30, refresh_stats)
+                # Update chart
+                now = datetime.now().strftime("%H:%M:%S")
+                _chart_times.append(now)
+                _chart_rx.append(round(rx_rate, 1))
+                _chart_tx.append(round(tx_rate, 1))
+                if len(_chart_times) > MAX_CHART_POINTS:
+                    _chart_times.pop(0)
+                    _chart_rx.pop(0)
+                    _chart_tx.pop(0)
+
+                traffic_chart.options["xAxis"]["data"] = _chart_times
+                traffic_chart.options["series"][0]["data"] = _chart_rx
+                traffic_chart.options["series"][1]["data"] = _chart_tx
+                traffic_chart.update()
+
+        ui.timer(5, refresh_stats)
 
         # Active configuration
         with ui.card().classes("w-full q-mt-md"):
@@ -463,25 +578,28 @@ async def device_detail_page(device_id: str):
 def _show_config_dialog(device_name: str, config_text: str):
     """Show a dialog with the WireGuard client configuration and QR code."""
     with ui.dialog(value=True) as dialog:
-        with ui.card().classes("w-96"):
+        with ui.card().classes("w-[700px] max-w-[90vw]"):
             ui.label(f"Config for {device_name}").classes("text-h6")
-            ui.label("Save this — the private key won't be shown again.").classes("text-caption text-negative")
+            ui.label("Save this — the private key won't be shown again.").classes("text-caption text-negative q-mb-sm")
 
-            ui.textarea(value=config_text).props("readonly outlined").classes(
-                "w-full font-mono text-xs q-mt-sm"
-            ).style("min-height: 200px")
+            ui.code(config_text, language="ini").classes("w-full")
 
             try:
-                qr = qrcode.make(config_text, image_factory=qrcode.image.svg.SvgPathImage)
+                import base64
+                qr = qrcode.make(config_text)
                 buf = io.BytesIO()
-                qr.save(buf)
-                ui.html(buf.getvalue().decode()).classes("w-full q-mt-sm").style("background: white; padding: 8px; border-radius: 8px")
+                qr.save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode()
+                with ui.row().classes("w-full justify-center q-mt-md"):
+                    ui.image(f"data:image/png;base64,{b64}").style(
+                        "width: 200px; height: 200px; border-radius: 8px"
+                    )
             except Exception:
                 ui.label("QR code generation failed").classes("text-caption text-grey")
 
-            ui.button(
-                "Download .conf",
-                on_click=lambda: ui.download(config_text.encode(), f"{device_name}.conf"),
-            ).props("color=primary unelevated").classes("w-full q-mt-sm")
-
-            ui.button("Close", on_click=dialog.close).props("flat").classes("w-full")
+            with ui.row().classes("w-full gap-2 q-mt-md"):
+                ui.button(
+                    "Download .conf",
+                    on_click=lambda: ui.download(config_text.encode(), f"{device_name}.conf"),
+                ).props("color=primary unelevated").classes("flex-grow")
+                ui.button("Close", on_click=dialog.close).props("flat")

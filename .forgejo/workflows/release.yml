@@ -23,16 +23,23 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
+      valkey:
+        image: valkey/valkey:8
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     env:
       CI: "true"
       WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui
+      WG_REDIS_URL: redis://valkey:6379/0
     steps:
       - name: Install system dependencies and checkout
         run: |
           apt-get update && apt-get install -y --no-install-recommends \
             git wireguard-tools pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl
-          git clone --depth=1 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
-          git checkout ${GITHUB_SHA}
+          git clone --depth=1 -b "${GITHUB_REF_NAME}" ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
 
       - name: Install uv
         run: pip install uv
@@ -40,146 +47,58 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Run unit tests
-        run: uv run pytest tests/ --ignore=tests/e2e -v --tb=short
+      - name: Run migrations
+        run: uv run alembic upgrade head
 
-      - name: Run E2E tests
-        run: |
-          uv run alembic upgrade head
-          uv run pytest tests/e2e/ -v --tb=short
+      - name: Run unit tests
+        run: uv run pytest tests/ --ignore=tests/e2e --ignore=tests/integration -v --tb=short
 
   release:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: docker
     container:
-      image: node:20-slim
+      image: python:3.13-slim
     outputs:
-      new_tag: ${{ steps.version.outputs.new_tag }}
-      new_version: ${{ steps.version.outputs.new_version }}
-      skip: ${{ steps.version.outputs.skip }}
+      new_version: ${{ steps.semrel.outputs.new_version }}
+      skip: ${{ steps.semrel.outputs.skip }}
     steps:
       - name: Install dependencies and checkout
         run: |
-          apt-get update && apt-get install -y --no-install-recommends bash git python3 ca-certificates
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
           git clone ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
           git checkout ${GITHUB_SHA}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "Forgejo Actions"
+          git config user.email "noreply@forge.provvedo.com"
           git config --local http.${GITHUB_SERVER_URL}/.extraheader "AUTHORIZATION: basic $(echo -n "x-access-token:${GITHUB_TOKEN}" | base64 -w0)"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine version bump
-        id: version
-        shell: bash
+      - name: Install uv and semantic-release
         run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "latest_tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+          pip install uv
+          uv sync --group dev
 
-          CURRENT="${LATEST_TAG#v}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-
-          COMMITS=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
-
-          BUMP="none"
-          while IFS= read -r msg; do
-            case "$msg" in
-              *"BREAKING CHANGE"*|*"!:"*)
-                BUMP="major"
-                break
-                ;;
-              feat:*|feat\(*)
-                [ "$BUMP" != "major" ] && BUMP="minor"
-                ;;
-              fix:*|fix\(*|perf:*|perf\(*|refactor:*|refactor\(*)
-                [ "$BUMP" = "none" ] && BUMP="patch"
-                ;;
-            esac
-          done <<< "$COMMITS"
-
-          if [ "$BUMP" = "none" ]; then
-            echo "No version-relevant commits since ${LATEST_TAG}, skipping release"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          case "$BUMP" in
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH + 1)) ;;
-          esac
-
-          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "new_tag=v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "bump=${BUMP}" >> "$GITHUB_OUTPUT"
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-          echo "Version bump: ${BUMP} -> v${NEW_VERSION}"
-
-      - name: Generate changelog
-        id: changelog
-        if: steps.version.outputs.skip != 'true'
-        shell: bash
-        run: |
-          LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
-          NEW_TAG="${{ steps.version.outputs.new_tag }}"
-
-          BODY="## ${NEW_TAG}"$'\n\n'
-
-          for type_label in "feat:Features" "fix:Bug Fixes" "refactor:Refactoring" "perf:Performance" "docs:Documentation" "chore:Maintenance"; do
-            prefix="${type_label%%:*}"
-            label="${type_label#*:}"
-            MATCHES=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%s" 2>/dev/null | grep -E "^${prefix}[:(]" || true)
-            if [ -n "$MATCHES" ]; then
-              BODY="${BODY}### ${label}"$'\n\n'
-              while IFS= read -r line; do
-                CLEAN=$(echo "$line" | sed -E "s/^${prefix}(\([^)]*\))?:\s*//")
-                BODY="${BODY}- ${CLEAN}"$'\n'
-              done <<< "$MATCHES"
-              BODY="${BODY}"$'\n'
-            fi
-          done
-
-          echo "${BODY}" > /tmp/changelog.md
-          echo "Generated changelog for ${NEW_TAG}"
-
-      - name: Create tag and release
-        if: steps.version.outputs.skip != 'true'
+      - name: Semantic release
+        id: semrel
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NEW_TAG="${{ steps.version.outputs.new_tag }}"
-
-          git config user.name "Forgejo Actions"
-          git config user.email "noreply@forge.provvedo.com"
-          git tag -a "${NEW_TAG}" -m "Release ${NEW_TAG}"
-          git push origin "${NEW_TAG}"
-
-          FORGEJO_URL="${GITHUB_SERVER_URL}"
-          REPO="${GITHUB_REPOSITORY}"
-
-          python3 -c "
-          import json, urllib.request, os
-          body = open('/tmp/changelog.md').read()
-          tag = '${NEW_TAG}'
-          data = json.dumps({
-              'tag_name': tag,
-              'name': tag,
-              'body': body,
-              'draft': False,
-              'prerelease': False
-          }).encode()
-          req = urllib.request.Request(
-              '${FORGEJO_URL}/api/v1/repos/${REPO}/releases',
-              data=data,
-              headers={
-                  'Authorization': 'token ' + os.environ['GITHUB_TOKEN'],
-                  'Content-Type': 'application/json'
-              },
-              method='POST'
-          )
-          resp = urllib.request.urlopen(req)
-          print(f'Created release {tag} (HTTP {resp.status})')
-          "
+          OUTPUT=$(uv run semantic-release version --print 2>/dev/null || echo "")
+          if [ -z "$OUTPUT" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No release needed"
+          else
+            uv run semantic-release version
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "new_version=${OUTPUT}" >> "$GITHUB_OUTPUT"
+            echo "Released v${OUTPUT}"
+          fi
 
   docker:
     needs: release
@@ -191,8 +110,7 @@ jobs:
     steps:
       - name: Checkout repository
         run: |
-          git clone --depth=1 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
-          git checkout ${GITHUB_SHA}
+          git clone --depth=1 -b "${GITHUB_REF_NAME}" ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
 
       - name: Build and push image
         shell: bash
@@ -200,30 +118,26 @@ jobs:
           REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: |
           VERSION="${{ needs.release.outputs.new_version }}"
-          TAG="${{ needs.release.outputs.new_tag }}"
           REGISTRY=$(echo "${{ github.server_url }}" | sed 's|https://||; s|http://||')
           IMAGE="${REGISTRY}/${{ github.repository_owner }}/wiregui"
 
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
           MINOR=$(echo "$VERSION" | cut -d. -f2)
 
-          echo "Building ${IMAGE}:${TAG}"
+          echo "Building ${IMAGE}:v${VERSION}"
 
-          # Log in to Forgejo container registry
           echo "${REGISTRY_TOKEN}" | docker login "${REGISTRY}" \
             -u "${{ github.repository_owner }}" --password-stdin
 
-          # Build the image
           docker build --no-cache \
             --build-arg "VERSION=${VERSION}" \
-            -t "${IMAGE}:${TAG}" \
+            -t "${IMAGE}:v${VERSION}" \
             -t "${IMAGE}:${MAJOR}.${MINOR}" \
             -t "${IMAGE}:latest" \
             .
 
-          # Push all tags
-          docker push "${IMAGE}:${TAG}"
+          docker push "${IMAGE}:v${VERSION}"
           docker push "${IMAGE}:${MAJOR}.${MINOR}"
           docker push "${IMAGE}:latest"
 
-          echo "Pushed ${IMAGE}:${TAG}, ${IMAGE}:${MAJOR}.${MINOR}, ${IMAGE}:latest"
+          echo "Pushed ${IMAGE}:v${VERSION}, ${IMAGE}:${MAJOR}.${MINOR}, ${IMAGE}:latest"

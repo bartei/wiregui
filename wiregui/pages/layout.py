@@ -64,6 +64,7 @@ def layout(title: str = "WireGUI"):
     with ui.header().classes("items-center justify-between"):
         with ui.row().classes("items-center"):
             ui.button(icon="menu", on_click=lambda: drawer.toggle()).props("flat color=white")
+            ui.image("/img/wiregui.svg").classes("w-8 h-8")
             ui.label("WireGUI").classes("text-h6")
         with ui.row().classes("items-center"):
             if role == "admin":

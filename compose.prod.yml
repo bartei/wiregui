@@ -16,7 +16,7 @@ services:
       - net.ipv6.conf.all.forwarding=1
       - net.ipv6.conf.all.disable_ipv6=0
     environment:
-      WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui
+      WG_DATABASE_URL: postgresql+asyncpg://wiregui:${POSTGRES_PASSWORD:-wiregui}@postgres/wiregui
       WG_REDIS_URL: redis://valkey:6379/0
       WG_SECRET_KEY: ${WG_SECRET_KEY:-change-me-in-production}
       WG_WG_ENABLED: "true"
@@ -28,6 +28,10 @@ services:
       WG_ADMIN_EMAIL: ${WG_ADMIN_EMAIL:-admin@localhost}
       WG_ADMIN_PASSWORD: ${WG_ADMIN_PASSWORD:-}
       WG_LOG_TO_FILE: "true"
+      WG_METRICS_ENABLED: "true"
+      WG_METRICS_POLL_INTERVAL: "5"
+      WG_VICTORIAMETRICS_URL: http://victoriametrics:8428
+      WG_IDP_CONFIG_FILE: ${WG_IDP_CONFIG_FILE:-}
     volumes:
       - wiregui_logs:/app/logs
     depends_on:
@@ -35,15 +39,15 @@ services:
         condition: service_healthy
       valkey:
         condition: service_started
+      victoriametrics:
+        condition: service_started
 
   postgres:
     image: postgres:17
     restart: unless-stopped
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_USER: wiregui
-      POSTGRES_PASSWORD: wiregui
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wiregui}
       POSTGRES_DB: wiregui
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -59,7 +63,17 @@ services:
     volumes:
       - valkey_data:/data
 
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.108.1
+    restart: unless-stopped
+    command:
+      - "-retentionPeriod=90d"
+      - "-httpListenAddr=:8428"
+    volumes:
+      - vm_data:/victoria-metrics-data
+
 volumes:
   postgres_data:
   valkey_data:
   wiregui_logs:
+  vm_data:

@@ -1,7 +1,7 @@
 """OIDC authentication routes — redirect to provider and handle callback."""
 
 from loguru import logger
-from nicegui import app
+from nicegui import app, ui
 
 from fastapi import Request
 from fastapi.responses import RedirectResponse
@@ -43,17 +43,42 @@ async def oidc_callback(provider_id: str, request: Request):
         logger.error("OIDC token exchange failed for {}: {}", provider_id, e)
         return RedirectResponse(url="/login")
 
+    # Extract user info: try userinfo from token, then userinfo endpoint, then ID token claims
     userinfo = token.get("userinfo")
     if not userinfo:
         try:
-            userinfo = await client.userinfo()
+            userinfo = await client.userinfo(token=token)
         except Exception as e:
-            logger.error("OIDC userinfo failed for {}: {}", provider_id, e)
-            return RedirectResponse(url="/login")
+            logger.debug("OIDC userinfo endpoint failed for {}: {}", provider_id, e)
+            userinfo = None
 
-    email = userinfo.get("email")
+    # Fallback: decode the ID token for claims
+    if not userinfo or not userinfo.get("email"):
+        id_token = token.get("id_token")
+        if id_token:
+            try:
+                from jose import jwt as jose_jwt
+                # Decode without verification — we already verified during token exchange
+                claims = jose_jwt.get_unverified_claims(id_token)
+                userinfo = userinfo or {}
+                if not userinfo.get("email"):
+                    userinfo["email"] = claims.get("email")
+                if not userinfo.get("sub"):
+                    userinfo["sub"] = claims.get("sub")
+                logger.debug("OIDC: extracted claims from ID token: {}", claims)
+            except Exception as e:
+                logger.debug("OIDC: failed to decode ID token: {}", e)
+
+    email = (userinfo or {}).get("email")
+    # Fallback: if sub looks like an email, use it
     if not email:
-        logger.error("OIDC provider {} did not return email", provider_id)
+        sub = (userinfo or {}).get("sub", "")
+        if "@" in sub:
+            email = sub
+            logger.debug("OIDC: using sub as email: {}", email)
+    if not email:
+        logger.error("OIDC provider {} did not return email. Token keys: {}, userinfo: {}",
+                      provider_id, list(token.keys()), userinfo)
         return RedirectResponse(url="/login")
 
     provider_config = await get_provider_config(provider_id)
@@ -111,11 +136,30 @@ async def oidc_callback(provider_id: str, request: Request):
 
         logger.info("OIDC login: {} via {}", email, provider_id)
 
-        # Set NiceGUI session — store in Starlette session since we're in a plain route
-        request.session["authenticated"] = True
-        request.session["user_id"] = str(user.id)
-        request.session["email"] = user.email
-        request.session["role"] = user.role
-        request.session["theme_preference"] = user.theme_preference
+        # Store auth data in Starlette session — will be picked up by /auth/complete
+        request.session["oidc_user_id"] = str(user.id)
+        request.session["oidc_email"] = user.email
+        request.session["oidc_role"] = user.role
 
-    return RedirectResponse(url="/")
+    return RedirectResponse(url="/auth/complete")
+
+
+@ui.page("/auth/complete")
+def auth_complete_page(request: Request):
+    """Bridge page: transfer OIDC auth from Starlette session to NiceGUI storage."""
+    user_id = request.session.pop("oidc_user_id", None)
+    email = request.session.pop("oidc_email", None)
+    role = request.session.pop("oidc_role", None)
+
+    if not user_id or not email:
+        logger.warning("Auth complete page called without OIDC session data")
+        return ui.navigate.to("/login")
+
+    app.storage.user.update(
+        authenticated=True,
+        user_id=user_id,
+        email=email,
+        role=role or "unprivileged",
+    )
+    logger.info("OIDC auth completed for {} — session transferred to NiceGUI", email)
+    ui.navigate.to("/")

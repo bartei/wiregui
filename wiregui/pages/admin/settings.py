@@ -6,6 +6,7 @@ from loguru import logger
 from nicegui import app, ui
 from sqlmodel import select
 
+from wiregui.config import get_settings
 from wiregui.db import async_session
 from wiregui.models.configuration import Configuration
 from wiregui.pages.layout import layout

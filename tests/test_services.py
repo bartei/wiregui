@@ -1,4 +1,4 @@
-"""Tests for services — WireGuard and events."""
+"""Tests for services — WireGuard event error handling and rule events."""
 
 from unittest.mock import AsyncMock, patch
 
@@ -18,53 +18,6 @@ def _make_device(**kwargs) -> Device:
     )
     defaults.update(kwargs)
     return Device(**defaults)
-
-
-# --- Events (with WG enabled) ---
-
-
-@patch("wiregui.services.events.get_settings")
-@patch("wiregui.services.events.firewall")
-@patch("wiregui.services.events.wireguard")
-async def test_on_device_created_calls_add_peer(mock_wg, mock_fw, mock_settings):
-    mock_settings.return_value.wg_enabled = True
-    mock_wg.add_peer = AsyncMock()
-    mock_fw.add_user_chain = AsyncMock()
-    mock_fw.add_device_jump_rule = AsyncMock()
-
-    device = _make_device()
-    await on_device_created(device)
-
-    mock_wg.add_peer.assert_awaited_once_with(
-        public_key="pk-test",
-        allowed_ips=["10.3.2.5/32", "fd00::3:2:5/128"],
-        preshared_key="psk-test",
-    )
-    mock_fw.add_device_jump_rule.assert_awaited_once()
-
-
-@patch("wiregui.services.events.get_settings")
-@patch("wiregui.services.events.wireguard")
-async def test_on_device_deleted_calls_remove_peer(mock_wg, mock_settings):
-    mock_settings.return_value.wg_enabled = True
-    mock_wg.remove_peer = AsyncMock()
-
-    device = _make_device()
-    await on_device_deleted(device)
-
-    mock_wg.remove_peer.assert_awaited_once_with(public_key="pk-test")
-
-
-@patch("wiregui.services.events.get_settings")
-@patch("wiregui.services.events.wireguard")
-async def test_on_device_updated_calls_add_peer(mock_wg, mock_settings):
-    mock_settings.return_value.wg_enabled = True
-    mock_wg.add_peer = AsyncMock()
-
-    device = _make_device()
-    await on_device_updated(device)
-
-    mock_wg.add_peer.assert_awaited_once()
 
 
 # --- Events (WG disabled) ---

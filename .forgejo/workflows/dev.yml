@@ -6,7 +6,101 @@ on:
       - dev
 
 jobs:
+  test:
+    runs-on: docker
+    container:
+      image: python:3.13-slim
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wiregui
+          POSTGRES_PASSWORD: wiregui
+          POSTGRES_DB: wiregui
+        options: >-
+          --health-cmd "pg_isready -U wiregui"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      valkey:
+        image: valkey/valkey:8
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      CI: "true"
+      WG_DATABASE_URL: postgresql+asyncpg://wiregui:wiregui@postgres/wiregui
+      WG_REDIS_URL: redis://valkey:6379/0
+    steps:
+      - name: Install system dependencies and checkout
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            git wireguard-tools pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl
+          git clone --depth=1 -b "${GITHUB_REF_NAME}" ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run migrations
+        run: uv run alembic upgrade head
+
+      - name: Run unit tests
+        run: uv run pytest tests/ --ignore=tests/e2e --ignore=tests/integration -v --tb=short
+
+  release:
+    needs: test
+    runs-on: docker
+    container:
+      image: python:3.13-slim
+    outputs:
+      new_version: ${{ steps.semrel.outputs.new_version }}
+      skip: ${{ steps.semrel.outputs.skip }}
+    steps:
+      - name: Install dependencies and checkout
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          git clone ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git .
+          git checkout ${GITHUB_SHA}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "Forgejo Actions"
+          git config user.email "noreply@forge.provvedo.com"
+          git config --local http.${GITHUB_SERVER_URL}/.extraheader "AUTHORIZATION: basic $(echo -n "x-access-token:${GITHUB_TOKEN}" | base64 -w0)"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv and semantic-release
+        run: |
+          pip install uv
+          uv sync --group dev
+
+      - name: Semantic release (rc)
+        id: semrel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OUTPUT=$(uv run semantic-release version --print 2>/dev/null || echo "")
+          if [ -z "$OUTPUT" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No release needed"
+          else
+            uv run semantic-release version
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "new_version=${OUTPUT}" >> "$GITHUB_OUTPUT"
+            echo "Released v${OUTPUT}"
+          fi
+
   docker:
+    needs: release
+    if: needs.release.outputs.skip != 'true'
     runs-on: docker
     container:
       image: catthehacker/ubuntu:act-latest
@@ -15,20 +109,14 @@ jobs:
       - name: Checkout repository
         run: |
           git clone ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git -b dev .
-          git fetch origin main --tags
+          git fetch origin --tags
 
       - name: Build and push pre-release image
         shell: bash
         env:
           REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: |
-          # Derive version from latest tag on main: v1.2.3 -> 1.2.3.dev0, .dev1, etc.
-          LATEST_TAG=$(git describe --tags --abbrev=0 origin/main 2>/dev/null || echo "v0.0.0")
-          BASE_VERSION="${LATEST_TAG#v}"
-          # Count commits on dev since that tag
-          DEV_N=$(git rev-list --count "${LATEST_TAG}..HEAD" 2>/dev/null || echo "0")
-          VERSION="${BASE_VERSION}.dev${DEV_N}"
-
+          VERSION="${{ needs.release.outputs.new_version }}"
           REGISTRY=$(echo "${{ github.server_url }}" | sed 's|https://||; s|http://||')
           IMAGE="${REGISTRY}/${{ github.repository_owner }}/wiregui"
 

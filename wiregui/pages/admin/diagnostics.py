@@ -106,7 +106,7 @@ async def diagnostics_page():
 
             async with async_session() as session:
                 result = await session.execute(
-                    select(ConnectivityCheck).order_by(ConnectivityCheck.inserted_at.desc()).limit(20)
+                    select(ConnectivityCheck).order_by(ConnectivityCheck.inserted_at.desc()).limit(10)
                 )
                 checks = result.scalars().all()
 

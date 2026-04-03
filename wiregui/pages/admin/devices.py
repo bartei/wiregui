@@ -63,6 +63,7 @@ async def admin_devices_page():
     }
 
     async def load_devices(user_filter: str | None = None) -> list[dict]:
+        from wiregui.utils.time import connection_status
         async with async_session() as session:
             stmt = select(Device).order_by(Device.inserted_at.desc())
             if user_filter and user_filter != "all":
@@ -73,6 +74,8 @@ async def admin_devices_page():
                     "id": str(d.id),
                     "name": d.name,
                     "user": user_map.get(str(d.user_id), "Unknown"),
+                    "status_color": connection_status(d.latest_handshake)[0],
+                    "status_label": connection_status(d.latest_handshake)[1],
                     "ipv4": d.ipv4 or "-",
                     "ipv6": d.ipv6 or "-",
                     "public_key": d.public_key[:16] + "...",
@@ -262,6 +265,7 @@ async def admin_devices_page():
                 ui.button("Add Device", icon="add", on_click=lambda: create_dialog.open()).props("color=primary")
 
         columns = [
+            {"name": "status", "label": "", "field": "status_label", "align": "center"},
             {"name": "name", "label": "Name", "field": "name", "align": "left", "sortable": True},
             {"name": "user", "label": "User", "field": "user", "align": "left", "sortable": True},
             {"name": "ipv4", "label": "IPv4", "field": "ipv4", "align": "left"},
@@ -274,6 +278,15 @@ async def admin_devices_page():
         ]
         table = ui.table(columns=columns, rows=[], row_key="id").classes("w-full")
         table.add_slot(
+            "body-cell-status",
+            '''
+            <q-td :props="props">
+                <q-badge :color="props.row.status_color" rounded class="q-mr-sm" />
+                <span class="text-caption">{{ props.row.status_label }}</span>
+            </q-td>
+            ''',
+        )
+        table.add_slot(
             "body-cell-actions",
             '''
             <q-td :props="props">
@@ -284,6 +297,11 @@ async def admin_devices_page():
             </q-td>
             ''',
         )
+        def on_admin_row_click(e):
+            # Quasar rowClick args: [evt, row, index] or just row depending on NiceGUI version
+            row = e.args[1] if isinstance(e.args, list) else e.args
+            ui.navigate.to(f"/devices/{row['id']}")
+        table.on("rowClick", on_admin_row_click)
         table.on("edit", lambda e: open_edit(e.args))
         table.on("delete", lambda e: delete_device(e.args))
 
@@ -356,22 +374,27 @@ async def admin_devices_page():
 
     await refresh_table()
 
-    # Auto-refresh stats every 30 seconds
-    ui.timer(30, refresh_table)
+    ui.timer(5, refresh_table)
 
 
 def _show_config_dialog(device_name: str, config_text: str):
     with ui.dialog(value=True) as dialog:
-        with ui.card().classes("w-96"):
+        with ui.card().classes("w-[700px] max-w-[90vw]"):
             ui.label(f"Config for {device_name}").classes("text-h6")
-            ui.label("Save this — the private key won't be shown again.").classes("text-caption text-negative")
-            ui.textarea(value=config_text).props("readonly outlined").classes("w-full font-mono text-xs q-mt-sm").style("min-height: 200px")
+            ui.label("Save this — the private key won't be shown again.").classes("text-caption text-negative q-mb-sm")
+            ui.code(config_text, language="ini").classes("w-full")
             try:
-                qr = qrcode.make(config_text, image_factory=qrcode.image.svg.SvgPathImage)
+                import base64
+                qr = qrcode.make(config_text)
                 buf = io.BytesIO()
-                qr.save(buf)
-                ui.html(buf.getvalue().decode()).classes("w-full q-mt-sm").style("background: white; padding: 8px; border-radius: 8px")
+                qr.save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode()
+                with ui.row().classes("w-full justify-center q-mt-md"):
+                    ui.image(f"data:image/png;base64,{b64}").style(
+                        "width: 200px; height: 200px; border-radius: 8px"
+                    )
             except Exception:
                 pass
-            ui.button("Download .conf", on_click=lambda: ui.download(config_text.encode(), f"{device_name}.conf")).props("color=primary unelevated").classes("w-full q-mt-sm")
-            ui.button("Close", on_click=dialog.close).props("flat").classes("w-full")
+            with ui.row().classes("w-full gap-2 q-mt-md"):
+                ui.button("Download .conf", on_click=lambda: ui.download(config_text.encode(), f"{device_name}.conf")).props("color=primary unelevated").classes("flex-grow")
+                ui.button("Close", on_click=dialog.close).props("flat")

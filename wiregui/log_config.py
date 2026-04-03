@@ -17,7 +17,7 @@ def setup_logging(log_to_file: bool = False) -> None:
     )
 
     if log_to_file:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d")
         logger.add(
             f"logs/wiregui_{timestamp}.log",
             format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<7} | {name}:{function}:{line} - {message}",

@@ -129,10 +129,17 @@ async def apply_rule(user_id: str, destination: str, action: str, port_type: str
 async def rebuild_all_rules(users_devices_rules: list[dict]) -> None:
     """Full reconciliation: flush and rebuild all per-user chains from DB state.
 
+    Removes orphaned user chains that are no longer in the DB.
+
     Args:
         users_devices_rules: list of dicts with keys:
             user_id, devices (list of {ipv4, ipv6}), rules (list of {destination, action, port_type, port_range})
     """
+    # Discover existing user_ chains so we can remove orphans
+    existing_user_chains = await _list_user_chains()
+    expected_chains = {_user_chain_name(e["user_id"]) for e in users_devices_rules}
+    orphaned_chains = existing_user_chains - expected_chains
+
     commands = []
 
     for entry in users_devices_rules:
@@ -162,9 +169,16 @@ async def rebuild_all_rules(users_devices_rules: list[dict]) -> None:
             if dev.get("ipv6"):
                 commands.append(f"add rule inet {TABLE_NAME} forward ip6 saddr {dev['ipv6']} jump {chain}")
 
-    if commands:
-        await _nft_batch(commands)
-        logger.info("Firewall rules rebuilt for {} users", len(users_devices_rules))
+    # Remove orphaned user chains (must happen after forward chain is flushed
+    # so there are no remaining jump references to these chains)
+    for chain in orphaned_chains:
+        commands.append(f"flush chain inet {TABLE_NAME} {chain}")
+        commands.append(f"delete chain inet {TABLE_NAME} {chain}")
+
+    await _nft_batch(commands)
+    if orphaned_chains:
+        logger.info("Removed {} orphaned firewall chain(s): {}", len(orphaned_chains), orphaned_chains)
+    logger.info("Firewall rules rebuilt for {} users", len(users_devices_rules))
 
 
 async def apply_peer_to_peer_policy(enabled: bool) -> None:
@@ -233,6 +247,21 @@ async def get_ruleset() -> str:
         return await _nft("list ruleset")
     except RuntimeError:
         return "nftables is not available.\n\nThis requires root/NET_ADMIN privileges (production container)."
+
+
+async def _list_user_chains() -> set[str]:
+    """Return the set of user_ chain names currently in the wiregui table."""
+    try:
+        output = await _nft(f"list table inet {TABLE_NAME}")
+    except RuntimeError:
+        return set()
+    chains = set()
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("chain user_"):
+            name = line.split()[1]
+            chains.add(name)
+    return chains
 
 
 def _user_chain_name(user_id: str) -> str:

@@ -128,8 +128,9 @@ async def test_apply_rule(mock_batch):
     assert any("10.0.0.0/8" in c and "accept" in c and "tcp dport 80-443" in c for c in cmds)
 
 
+@patch("wiregui.services.firewall._list_user_chains", new_callable=AsyncMock, return_value=set())
 @patch("wiregui.services.firewall._nft_batch", new_callable=AsyncMock)
-async def test_rebuild_all_rules(mock_batch):
+async def test_rebuild_all_rules(mock_batch, mock_list):
     from wiregui.services.firewall import rebuild_all_rules
     await rebuild_all_rules([
         {
