@@ -15,7 +15,7 @@ from wiregui.utils.time import utcnow
 def test_generate_api_token():
     plaintext, token_hash = generate_api_token()
     assert len(plaintext) > 20
-    assert token_hash == hashlib.sha256(plaintext.encode()).hexdigest()
+    assert token_hash == hashlib.sha512(plaintext.encode()).hexdigest()
 
 
 def test_generate_api_token_unique():

@@ -15,13 +15,13 @@ from wiregui.utils.time import utcnow
 def generate_api_token() -> tuple[str, str]:
     """Generate a new API token. Returns (plaintext_token, token_hash)."""
     plaintext = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(plaintext.encode()).hexdigest()
+    token_hash = hashlib.sha512(plaintext.encode()).hexdigest()
     return plaintext, token_hash
 
 
 async def resolve_bearer_token(session: AsyncSession, token: str) -> User | None:
     """Look up a Bearer token and return the associated user, or None."""
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    token_hash = hashlib.sha512(token.encode()).hexdigest()
     result = await session.execute(
         select(ApiToken).where(ApiToken.token_hash == token_hash)
     )
