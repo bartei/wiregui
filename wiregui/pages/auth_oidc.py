@@ -57,9 +57,9 @@ async def oidc_callback(provider_id: str, request: Request):
         id_token = token.get("id_token")
         if id_token:
             try:
-                from jose import jwt as jose_jwt
+                import jwt as pyjwt
                 # Decode without verification — we already verified during token exchange
-                claims = jose_jwt.get_unverified_claims(id_token)
+                claims = pyjwt.decode(id_token, options={"verify_signature": False})
                 userinfo = userinfo or {}
                 if not userinfo.get("email"):
                     userinfo["email"] = claims.get("email")
