@@ -92,8 +92,8 @@ def _start_collector() -> None:
     global _collector_proc
     _collector_proc = subprocess.Popen(
         [sys.executable, "-m", "wiregui.collector"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     logger.info("Metrics collector started (pid={})", _collector_proc.pid)
 
