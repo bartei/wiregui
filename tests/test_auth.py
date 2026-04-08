@@ -55,6 +55,43 @@ async def test_seed_admin_creates_user(session, monkeypatch):
     assert verify_password("seed-pass-123", admin.password_hash)
 
 
+async def test_seed_admin_autogenerates_password(session, monkeypatch):
+    """seed_admin should generate a random password and log it when admin_password is None."""
+    from contextlib import asynccontextmanager
+
+    from loguru import logger
+
+    @asynccontextmanager
+    async def mock_session():
+        yield session
+
+    monkeypatch.setattr("wiregui.auth.seed.async_session", mock_session)
+    monkeypatch.setattr("wiregui.auth.seed.get_settings", lambda: type("S", (), {
+        "admin_email": "autogen@example.com",
+        "admin_password": None,
+    })())
+
+    log_messages = []
+    sink_id = logger.add(lambda msg: log_messages.append(msg.record), level="WARNING")
+    try:
+        await seed_admin()
+    finally:
+        logger.remove(sink_id)
+
+    # Admin user was created
+    result = await session.execute(select(User).where(User.email == "autogen@example.com"))
+    admin = result.scalar_one()
+    assert admin.role == "admin"
+
+    # The generated password was logged
+    password_records = [r for r in log_messages if "Generated admin password" in r["message"]]
+    assert len(password_records) == 1
+
+    # The logged password actually works
+    logged_password = password_records[0]["message"].split(": ", 1)[1]
+    assert verify_password(logged_password, admin.password_hash)
+
+
 async def test_seed_admin_skips_when_users_exist(session, monkeypatch):
     """seed_admin should not create a second admin if users already exist."""
     from contextlib import asynccontextmanager
