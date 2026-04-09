@@ -1,9 +1,6 @@
 services:
   wiregui:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: wiregui:latest
+    image: ghcr.io/bartei/wiregui:latest
     restart: unless-stopped
     ports:
       - "13000:13000"
