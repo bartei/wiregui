@@ -33,7 +33,7 @@ services:
       WG_VICTORIAMETRICS_URL: http://victoriametrics:8428
       WG_IDP_CONFIG_FILE: ${WG_IDP_CONFIG_FILE:-}
     volumes:
-      - wiregui_logs:/app/logs
+      - ./logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,5 +75,4 @@ services:
 volumes:
   postgres_data:
   valkey_data:
-  wiregui_logs:
   vm_data:
