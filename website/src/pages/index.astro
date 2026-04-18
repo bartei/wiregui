@@ -1,0 +1,31 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Hero from '../components/Hero.astro';
+import Features from '../components/Features.astro';
+import Screenshots from '../components/Screenshots.astro';
+import GettingStarted from '../components/GettingStarted.astro';
+import Documentation from '../components/Documentation.astro';
+import ApiSection from '../components/ApiSection.astro';
+import AntiEnshittification from '../components/AntiEnshittification.astro';
+import TechStack from '../components/TechStack.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Layout
+  title="WireGUI - Self-hosted WireGuard VPN Management"
+  description="A clean web interface for managing WireGuard peers, firewall rules, and user authentication. Open source, self-hosted, AGPL-licensed."
+>
+  <Header />
+  <main>
+    <Hero />
+    <Features />
+    <Screenshots />
+    <GettingStarted />
+    <Documentation />
+    <ApiSection />
+    <AntiEnshittification />
+    <TechStack />
+  </main>
+  <Footer />
+</Layout>

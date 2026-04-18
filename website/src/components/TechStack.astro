@@ -1,0 +1,29 @@
+---
+const stack = [
+  { layer: 'UI', tech: 'NiceGUI', note: 'Reactive server-side, WebSocket' },
+  { layer: 'API', tech: 'FastAPI', note: 'Built into NiceGUI' },
+  { layer: 'ORM', tech: 'SQLModel', note: 'SQLAlchemy + Pydantic' },
+  { layer: 'Database', tech: 'PostgreSQL', note: 'asyncpg driver' },
+  { layer: 'Cache', tech: 'Valkey', note: 'Redis-compatible' },
+  { layer: 'Migrations', tech: 'Alembic', note: 'Auto-generate' },
+  { layer: 'Auth', tech: 'authlib + webauthn', note: 'OIDC, SAML, TOTP, WebAuthn' },
+  { layer: 'VPN', tech: 'WireGuard', note: 'wg + ip CLI' },
+  { layer: 'Firewall', tech: 'nftables', note: 'nft CLI' },
+];
+---
+
+<section class="border-t border-slate-200 py-16">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <h2 class="text-center text-2xl font-bold text-navy-950">Built with</h2>
+    <div class="mx-auto mt-8 flex max-w-4xl flex-wrap items-center justify-center gap-x-8 gap-y-4">
+      {stack.map(({ tech }) => (
+        <span class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
+          {tech}
+        </span>
+      ))}
+      <span class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
+        Python 3.13
+      </span>
+    </div>
+  </div>
+</section>

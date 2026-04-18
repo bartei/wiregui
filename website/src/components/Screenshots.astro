@@ -1,0 +1,107 @@
+---
+const screenshots = [
+  { src: '/wiregui/img/01_login.png', alt: 'Login page with email/password and SSO options', label: 'Login' },
+  { src: '/wiregui/img/02_devices.png', alt: 'Device list showing VPN peers with status, IPs, and traffic stats', label: 'My Devices' },
+  { src: '/wiregui/img/03_add_device_dialog.png', alt: 'Add device dialog with QR code and configuration download', label: 'Add Device' },
+  { src: '/wiregui/img/04_account.png', alt: 'Account settings with password, SSO, API tokens, and MFA', label: 'Account Settings' },
+  { src: '/wiregui/img/06_admin_users.png', alt: 'Admin user management table with roles and status', label: 'User Management' },
+  { src: '/wiregui/img/08_admin_devices.png', alt: 'Admin view of all devices across users with filtering', label: 'Device Administration' },
+  { src: '/wiregui/img/09_admin_rules.png', alt: 'Firewall rules with network policies and per-user rules', label: 'Firewall Rules' },
+  { src: '/wiregui/img/11_admin_settings.png', alt: 'Settings page with client defaults, auth config, and IdP management', label: 'Settings & SSO' },
+  { src: '/wiregui/img/13_admin_diagnostics.png', alt: 'Diagnostics showing WireGuard interface status and connectivity checks', label: 'Diagnostics' },
+];
+---
+
+<section id="screenshots" class="bg-slate-50 py-20 sm:py-28">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl text-center">
+      <h2 class="text-3xl font-bold tracking-tight text-navy-950 sm:text-4xl">
+        See it in action
+      </h2>
+      <p class="mt-4 text-lg text-slate-600">
+        A clean, intuitive interface for every aspect of VPN management.
+      </p>
+    </div>
+
+    <div class="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {screenshots.map(({ src, alt, label }) => (
+        <figure
+          class="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-xl"
+          role="button"
+          tabindex="0"
+          data-screenshot={src}
+          aria-label={`View full size: ${label}`}
+        >
+          <div class="overflow-hidden">
+            <img
+              src={src}
+              alt={alt}
+              class="w-full transition-transform duration-300 group-hover:scale-105"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption class="border-t border-slate-100 px-4 py-3 text-sm font-medium text-slate-700">
+            {label}
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- Lightbox modal -->
+<div
+  id="lightbox"
+  class="screenshot-modal fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Screenshot preview"
+>
+  <button
+    id="lightbox-close"
+    type="button"
+    class="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+    aria-label="Close preview"
+  >
+    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  </button>
+  <img id="lightbox-img" src="" alt="" class="max-h-[90vh] max-w-[90vw] rounded-xl shadow-2xl" />
+</div>
+
+<script>
+  const lightbox = document.getElementById('lightbox')!;
+  const lightboxImg = document.getElementById('lightbox-img') as HTMLImageElement;
+  const lightboxClose = document.getElementById('lightbox-close')!;
+
+  // Open lightbox
+  document.querySelectorAll('[data-screenshot]').forEach((el) => {
+    const handler = () => {
+      const src = el.getAttribute('data-screenshot')!;
+      const alt = el.querySelector('img')?.alt ?? '';
+      lightboxImg.src = src;
+      lightboxImg.alt = alt;
+      lightbox.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    };
+    el.addEventListener('click', handler);
+    el.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter') handler();
+    });
+  });
+
+  // Close lightbox
+  const closeLightbox = () => {
+    lightbox.classList.remove('active');
+    document.body.style.overflow = '';
+  };
+  lightboxClose.addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox) closeLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLightbox();
+  });
+</script>
