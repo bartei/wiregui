@@ -12,6 +12,22 @@ WireGUI is AGPL-licensed specifically to prevent this. If you run it, you own it
 
 Software that manages your network traffic should be fully transparent and fully yours.
 
+## Screenshots
+
+| Devices | Account Settings |
+|---------|-----------------|
+| ![Devices](img/devices.png) | ![Account Settings](img/account.png) |
+
+| User Management | Firewall Rules |
+|----------------|----------------|
+| ![User Management](img/admin_users.png) | ![Firewall Rules](img/admin_rules.png) |
+
+| Settings & SSO |
+|----------------|
+| ![Settings](img/admin_settings.png) |
+
+See the [wiki](https://github.com/bartei/wiregui/wiki) for full documentation with more screenshots.
+
 ## Features
 
 - **WireGuard management** -- create/delete peers, automatic IP allocation (IPv4 + IPv6), QR codes and `.conf` downloads
