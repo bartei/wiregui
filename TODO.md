@@ -80,7 +80,7 @@ All metrics implemented in `collector.py` and verified by integration tests:
 
 ## CI/Testing
 
-- [ ] Fix E2E tests in CI — tests pass locally but fail in the Forgejo Actions container environment (stale DB reads between app subprocess and test process, Playwright can't resolve Docker service hostnames for SAML redirect). Currently disabled in `.forgejo/workflows/dev.yml`.
+- [ ] Fix E2E tests in CI — tests pass locally but fail in the CI container environment (stale DB reads between app subprocess and test process, Playwright can't resolve Docker service hostnames for SAML redirect). Not currently wired into `.github/workflows/dev.yml`.
 
 ## UI
 

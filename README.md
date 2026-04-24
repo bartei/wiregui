@@ -44,7 +44,7 @@ Software that manages your network traffic should be fully transparent and fully
 
 ```bash
 # Clone and install
-git clone https://forge.provvedo.com/provvedo/wiregui.git
+git clone https://github.com/bartei/wiregui.git
 cd wiregui
 uv sync
 
