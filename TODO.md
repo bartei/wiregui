@@ -67,7 +67,6 @@ All metrics implemented in `collector.py` and verified by integration tests:
 - [x] Clients generate traffic by pinging each other through the tunnel every 3s
 - [x] Setup script (`docker/mock-clients/setup.py`) generates keypairs and configs
 - [x] Collector runs as subprocess inside the WireGUI container (shares network namespace)
-- [ ] Add VictoriaMetrics to dev `compose.yml` (optional, for local testing)
 
 ### Design notes
 
@@ -78,10 +77,6 @@ All metrics implemented in `collector.py` and verified by integration tests:
 
 ---
 
-## CI/Testing
-
-- [ ] Fix E2E tests in CI — tests pass locally but fail in the Forgejo Actions container environment (stale DB reads between app subprocess and test process, Playwright can't resolve Docker service hostnames for SAML redirect). Currently disabled in `.forgejo/workflows/dev.yml`.
-
 ## UI
 
 - [ ] SAML provider management in Authentication tab (admin settings)
@@ -91,3 +86,10 @@ All metrics implemented in `collector.py` and verified by integration tests:
 ## Features
 
 - [ ] First-run CLI setup command
+
+## Tech debt / warnings
+
+- [ ] Replace deprecated `datetime.utcfromtimestamp()` in `wiregui/services/wireguard.py:176` with `datetime.fromtimestamp(ts, datetime.UTC)` (scheduled for removal in a future Python version)
+- [ ] Migrate from deprecated `authlib.jose` to `joserfc` (authlib will drop it before 2.0.0) — impacts `wiregui/auth/oidc.py` and related modules
+- [ ] Remove unknown `main_file` option from pytest config in `pyproject.toml` (triggers `PytestConfigWarning` on every run)
+- [ ] Use a ≥32-byte HMAC key in `tests/test_auth.py::test_decode_tampered_token` and `tests/test_magic_link.py::test_magic_link_token_wrong_user` to silence `InsecureKeyLengthWarning` (test-only, no production impact)
