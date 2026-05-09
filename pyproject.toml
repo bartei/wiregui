@@ -85,8 +85,8 @@ exclude_commit_patterns = [
 changelog_file = "CHANGELOG.md"
 
 [tool.semantic_release.remote]
-type = "gitea"
-token = { env = "GITHUB_TOKEN" }
+type = "github"
+token = { env = "GH_TOKEN" }
 
 [tool.semantic_release.publish]
 upload_to_vcs_release = false
