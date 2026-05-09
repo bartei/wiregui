@@ -8,6 +8,5 @@ logs/
 .idea/
 .pytest_cache/
 tests/
-.forgejo/
 *.md
 compose*.yml
