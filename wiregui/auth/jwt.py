@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError, jwt
+import jwt
 
 from wiregui.config import get_settings
 
@@ -22,5 +22,5 @@ def decode_access_token(token: str) -> dict | None:
     """Decode and validate a JWT. Returns the payload dict or None if invalid/expired."""
     try:
         return jwt.decode(token, get_settings().secret_key, algorithms=[ALGORITHM])
-    except JWTError:
+    except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
         return None

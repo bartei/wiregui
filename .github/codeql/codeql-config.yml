@@ -1,0 +1,9 @@
+name: "WireGUI CodeQL config"
+
+query-filters:
+  # API token hashing uses HMAC-SHA256 which is appropriate for high-entropy
+  # tokens (256-bit random). Actual password hashing uses bcrypt.
+  # CodeQL flags any SHA-family hash as "weak for password hashing" but this
+  # rule is not applicable to API token lookups.
+  - exclude:
+      id: py/weak-sensitive-data-hashing

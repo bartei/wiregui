@@ -166,8 +166,10 @@ async def test_seed_preserves_providers_not_in_yaml(clean_config, monkeypatch):
 
 
 async def test_seed_invalid_yaml(clean_config, monkeypatch):
-    path = Path(tempfile.mktemp(suffix=".yaml"))
-    path.write_text(": : : invalid yaml [[[")
+    f = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False, mode="w")
+    f.write(": : : invalid yaml [[[")
+    f.close()
+    path = Path(f.name)
     monkeypatch.setattr("wiregui.auth.seed.get_settings", lambda: type("S", (), {"idp_config_file": str(path)})())
     await seed_idp_providers()
     async with async_session() as session:

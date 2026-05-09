@@ -1,0 +1,91 @@
+name: Dev
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.13-slim
+    steps:
+      - name: Install system dependencies
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "noreply@github.com"
+
+      - name: Install uv and dependencies
+        run: |
+          pip install uv
+          uv sync --group dev
+
+      - name: Semantic release (rc)
+        id: semrel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(uv run semantic-release version --print 2>/dev/null || echo "")
+          if [ -z "$VERSION" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No release needed"
+          else
+            uv run semantic-release version
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "new_version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Released v${VERSION}"
+          fi
+
+    outputs:
+      new_version: ${{ steps.semrel.outputs.new_version }}
+      skip: ${{ steps.semrel.outputs.skip }}
+
+  docker:
+    needs: release
+    if: needs.release.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push pre-release image
+        run: |
+          VERSION="${{ needs.release.outputs.new_version }}"
+          IMAGE="ghcr.io/${{ github.repository_owner }}/wiregui"
+
+          echo "Building ${IMAGE}:v${VERSION}"
+
+          docker build --no-cache \
+            --build-arg "VERSION=${VERSION}" \
+            -t "${IMAGE}:v${VERSION}" \
+            -t "${IMAGE}:dev" \
+            .
+
+          docker push "${IMAGE}:v${VERSION}"
+          docker push "${IMAGE}:dev"
+
+          echo "Pushed ${IMAGE}:v${VERSION}, ${IMAGE}:dev"
