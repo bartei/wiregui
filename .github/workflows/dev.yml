@@ -8,13 +8,9 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    container:
-      image: python:3.13-slim
+    permissions:
+      contents: write
     steps:
-      - name: Install system dependencies
-        run: |
-          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -25,6 +21,11 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "noreply@github.com"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
       - name: Install uv and dependencies
         run: |
