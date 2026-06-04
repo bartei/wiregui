@@ -132,6 +132,8 @@ async def admin_devices_page():
                                          if not create_use_default_keepalive.value and create_keepalive.value else None),
                     allowed_ips=([s.strip() for s in create_allowed_ips.value.split(",") if s.strip()]
                                  if not create_use_default_ips.value and create_allowed_ips.value else []),
+                    allowed_subnets=([s.strip() for s in create_allowed_subnets.value.split(",") if s.strip()]
+                                    if create_allowed_subnets.value else []),
                 )
                 session.add(device)
                 await session.commit()
@@ -175,6 +177,7 @@ async def admin_devices_page():
         create_endpoint.value = _defaults["endpoint"]
         create_mtu.value = _defaults["mtu"]
         create_keepalive.value = _defaults["keepalive"]
+        create_allowed_subnets.value = ""
 
     # --- Edit device ---
     edit_device_id = {"value": None}
@@ -198,6 +201,7 @@ async def admin_devices_page():
         edit_mtu.value = str(device.mtu) if device.mtu else ""
         edit_keepalive.value = str(device.persistent_keepalive) if device.persistent_keepalive else ""
         edit_allowed_ips.value = ", ".join(device.allowed_ips) if device.allowed_ips else ""
+        edit_allowed_subnets.value = ", ".join(device.allowed_subnets) if device.allowed_subnets else ""
         edit_dialog.open()
 
     async def save_edit():
@@ -228,6 +232,8 @@ async def admin_devices_page():
                 device.persistent_keepalive = int(edit_keepalive.value) if edit_keepalive.value else None
             if not device.use_default_allowed_ips:
                 device.allowed_ips = [s.strip() for s in edit_allowed_ips.value.split(",") if s.strip()]
+            
+            device.allowed_subnets = [s.strip() for s in edit_allowed_subnets.value.split(",") if s.strip()]
 
             session.add(device)
             await session.commit()
@@ -337,6 +343,11 @@ async def admin_devices_page():
                 create_use_default_keepalive = ui.switch("Use default Keepalive", value=True)
                 create_keepalive = ui.input("Persistent Keepalive", value=_defaults["keepalive"]).props("outlined dense").classes("w-full").bind_enabled_from(create_use_default_keepalive, "value", backward=lambda v: not v)
 
+            ui.separator().classes("q-my-sm")
+            ui.label("Relay / Site-to-Site Configuration").classes("text-subtitle2")
+            ui.label("Additional subnets this device routes (comma-separated CIDRs, e.g., 192.168.1.0/24)").classes("text-caption text-grey")
+            create_allowed_subnets = ui.input("Routed Subnets (optional)").props("outlined dense").classes("w-full")
+
             with ui.row().classes("w-full justify-end q-mt-sm"):
                 ui.button("Cancel", on_click=create_dialog.close).props("flat")
                 ui.button("Create", on_click=create_device).props("color=primary")
@@ -367,6 +378,11 @@ async def admin_devices_page():
 
                 edit_use_default_keepalive = ui.switch("Use default Keepalive", value=True)
                 edit_keepalive = ui.input("Persistent Keepalive").props("outlined dense").classes("w-full").bind_enabled_from(edit_use_default_keepalive, "value", backward=lambda v: not v)
+
+            ui.separator().classes("q-my-sm")
+            ui.label("Relay / Site-to-Site Configuration").classes("text-subtitle2")
+            ui.label("Additional subnets this device routes (comma-separated CIDRs, e.g., 192.168.1.0/24)").classes("text-caption text-grey")
+            edit_allowed_subnets = ui.input("Routed Subnets (optional)").props("outlined dense").classes("w-full")
 
             with ui.row().classes("w-full justify-end q-mt-sm"):
                 ui.button("Cancel", on_click=edit_dialog.close).props("flat")

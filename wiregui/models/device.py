@@ -33,6 +33,9 @@ class Device(SQLModel, table=True):
     # Assigned tunnel addresses
     ipv4: str | None = Field(default=None, unique=True)
     ipv6: str | None = Field(default=None, unique=True)
+    
+    # Additional subnets this peer routes (for site-to-site / relay configuration)
+    allowed_subnets: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
 
     # Peer stats (updated periodically from WireGuard)
     remote_ip: str | None = None

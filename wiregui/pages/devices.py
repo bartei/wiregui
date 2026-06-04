@@ -119,6 +119,8 @@ async def devices_page():
                                          if not create_use_default_keepalive.value and create_keepalive.value else None),
                     allowed_ips=([s.strip() for s in create_allowed_ips.value.split(",") if s.strip()]
                                  if not create_use_default_ips.value and create_allowed_ips.value else []),
+                    allowed_subnets=([s.strip() for s in create_allowed_subnets.value.split(",") if s.strip()]
+                                    if create_allowed_subnets.value else []),
                 )
                 session.add(device)
                 await session.commit()
@@ -162,6 +164,7 @@ async def devices_page():
         create_endpoint.value = _defaults["endpoint"]
         create_mtu.value = _defaults["mtu"]
         create_keepalive.value = _defaults["keepalive"]
+        create_allowed_subnets.value = ""
 
     # --- Delete device ---
     async def delete_device(device_id: str):
@@ -256,6 +259,11 @@ async def devices_page():
                     "outlined dense"
                 ).classes("w-full").bind_enabled_from(create_use_default_keepalive, "value", backward=lambda v: not v)
 
+            ui.separator().classes("q-my-sm")
+            ui.label("Relay / Site-to-Site Configuration").classes("text-subtitle2")
+            ui.label("Additional subnets this device routes (comma-separated CIDRs, e.g., 192.168.1.0/24)").classes("text-caption text-grey")
+            create_allowed_subnets = ui.input("Routed Subnets (optional)").props("outlined dense").classes("w-full")
+
             with ui.row().classes("w-full justify-end q-mt-md"):
                 ui.button("Cancel", on_click=create_dialog.close).props("flat")
                 ui.button("Create", on_click=create_device).props("color=primary")
@@ -305,6 +313,8 @@ async def device_detail_page(device_id: str):
                 d.persistent_keepalive = int(edit_keepalive.value) if edit_keepalive.value else None
             if not d.use_default_allowed_ips:
                 d.allowed_ips = [s.strip() for s in edit_allowed_ips.value.split(",") if s.strip()]
+            
+            d.allowed_subnets = [s.strip() for s in edit_allowed_subnets.value.split(",") if s.strip()]
 
             session.add(d)
             await session.commit()
@@ -554,6 +564,14 @@ async def device_detail_page(device_id: str):
                 ).props("outlined dense").classes("w-full").bind_enabled_from(
                     edit_use_default_keepalive, "value", backward=lambda v: not v
                 )
+
+            ui.separator().classes("q-my-sm")
+            ui.label("Relay / Site-to-Site Configuration").classes("text-subtitle2")
+            ui.label("Additional subnets this device routes (comma-separated CIDRs, e.g., 192.168.1.0/24)").classes("text-caption text-grey")
+            edit_allowed_subnets = ui.input(
+                "Routed Subnets (optional)", 
+                value=", ".join(device.allowed_subnets) if device.allowed_subnets else ""
+            ).props("outlined dense").classes("w-full")
 
             ui.button("Save Changes", on_click=save_edit).props("color=primary").classes("q-mt-md")
 

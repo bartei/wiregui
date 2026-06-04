@@ -237,3 +237,36 @@ async def test_config_dialog_shows_wg_config(page: Page, test_user):
 
     # QR code should be rendered
     await expect(page.locator(".q-dialog img")).to_be_visible(timeout=5_000)
+
+
+async def test_create_device_with_relay_subnets(page: Page, test_user):
+    """Admin creates a device with relay subnets for site-to-site VPN."""
+    await _go_to_admin_devices(page)
+    await page.get_by_role("button", name="Add Device").click()
+    await expect(page.get_by_text("New Device")).to_be_visible(timeout=5_000)
+
+    await page.locator("input[aria-label='Device Name']").fill("site-gateway")
+    await page.locator("input[aria-label='Description (optional)']").fill("Site-to-site gateway")
+    
+    # Scroll to relay configuration section
+    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    
+    # Fill in relay subnets
+    await page.locator(".q-dialog input[aria-label='Routed Subnets (optional)']").fill("192.168.1.0/24, 10.20.0.0/16")
+    
+    await page.get_by_role("button", name="Create").click()
+
+    # Should see config dialog
+    await expect(page.get_by_text("Config for site-gateway")).to_be_visible(timeout=10_000)
+    await page.get_by_role("button", name="Close").click()
+    await page.wait_for_timeout(500)
+
+    # Verify device was created with relay subnets in DB
+    async with async_session() as session:
+        result = await session.execute(
+            select(Device).where(Device.name == "site-gateway")
+            .order_by(Device.inserted_at.desc()).limit(1)
+        )
+        device = result.scalar_one()
+        assert device.allowed_subnets == ["192.168.1.0/24", "10.20.0.0/16"]
+        assert device.description == "Site-to-site gateway"

@@ -12,12 +12,14 @@ from wiregui.services import firewall, wireguard
 
 
 def _device_allowed_ips(device: Device) -> list[str]:
-    """Build the allowed-ips list for a device peer (its tunnel addresses)."""
+    """Build the allowed-ips list for a device peer (its tunnel addresses + relay subnets)."""
     ips = []
     if device.ipv4:
         ips.append(f"{device.ipv4}/32")
     if device.ipv6:
         ips.append(f"{device.ipv6}/128")
+    if device.allowed_subnets:
+        ips.extend(device.allowed_subnets)
     return ips
 
 
