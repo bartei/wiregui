@@ -34,6 +34,8 @@ async def reconcile() -> None:
             ips.append(f"{device.ipv4}/32")
         if device.ipv6:
             ips.append(f"{device.ipv6}/128")
+        if device.allowed_subnets:
+            ips.extend(device.allowed_subnets)
         try:
             await wireguard.add_peer(
                 public_key=device.public_key,
@@ -75,7 +77,10 @@ async def _reconcile_firewall(devices: list[Device], rules: list[Rule]) -> None:
 
         entries.append({
             "user_id": uid,
-            "devices": [{"ipv4": d.ipv4, "ipv6": d.ipv6} for d in user_devices],
+            "devices": [
+                {"ipv4": d.ipv4, "ipv6": d.ipv6, "allowed_subnets": d.allowed_subnets}
+                for d in user_devices
+            ],
             "rules": [
                 {"destination": r.destination, "action": r.action,
                  "port_type": r.port_type, "port_range": r.port_range}

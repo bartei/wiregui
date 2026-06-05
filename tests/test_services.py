@@ -104,7 +104,7 @@ async def test_on_device_created_handles_wg_error(mock_wg, mock_fw, mock_setting
 @patch("wiregui.services.events.firewall")
 @patch("wiregui.services.events.wireguard")
 async def test_on_device_created_with_relay_subnets(mock_wg, mock_fw, mock_settings):
-    """Test that device creation with relay subnets passes correct allowed_ips to WireGuard."""
+    """Test that device creation with relay subnets passes correct allowed_ips to WireGuard and firewall."""
     mock_settings.return_value.wg_enabled = True
     mock_wg.add_peer = AsyncMock()
     mock_fw.add_user_chain = AsyncMock()
@@ -118,6 +118,14 @@ async def test_on_device_created_with_relay_subnets(mock_wg, mock_fw, mock_setti
         public_key="pk-test",
         allowed_ips=["10.3.2.5/32", "fd00::3:2:5/128", "192.168.1.0/24", "10.20.0.0/16"],
         preshared_key="psk-test",
+    )
+    
+    # Verify firewall jump rule was added with relay subnets
+    mock_fw.add_device_jump_rule.assert_awaited_once_with(
+        "00000000-0000-0000-0000-000000000000",
+        "10.3.2.5",
+        "fd00::3:2:5",
+        ["192.168.1.0/24", "10.20.0.0/16"],
     )
 
 

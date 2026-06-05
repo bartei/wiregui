@@ -44,7 +44,10 @@ async def on_device_created(device: Device) -> None:
         # Ensure user chain exists before adding jump rules
         await firewall.add_user_chain(str(device.user_id))
         await firewall.add_device_jump_rule(
-            str(device.user_id), device.ipv4, device.ipv6,
+            str(device.user_id),
+            device.ipv4,
+            device.ipv6,
+            device.allowed_subnets,
         )
     except Exception as e:
         logger.error("Failed to add firewall jump rule for device {}: {}", device.name, e)
@@ -62,7 +65,7 @@ async def on_device_deleted(device: Device) -> None:
 
 
 async def on_device_updated(device: Device) -> None:
-    """Update WireGuard peer after a device is modified."""
+    """Update WireGuard peer and firewall after a device is modified."""
     if not get_settings().wg_enabled:
         return
     try:
@@ -73,6 +76,12 @@ async def on_device_updated(device: Device) -> None:
         )
     except Exception as e:
         logger.error("Failed to update WG peer for device {}: {}", device.name, e)
+    
+    # Rebuild firewall rules for this user to update allowed_subnets
+    try:
+        await _rebuild_user_chain(str(device.user_id))
+    except Exception as e:
+        logger.error("Failed to rebuild firewall rules for device {}: {}", device.name, e)
 
 
 # --- Rule events ---
@@ -127,7 +136,10 @@ async def _rebuild_user_chain(user_id: str) -> None:
 
         await firewall.rebuild_all_rules([{
             "user_id": user_id,
-            "devices": [{"ipv4": d.ipv4, "ipv6": d.ipv6} for d in devices],
+            "devices": [
+                {"ipv4": d.ipv4, "ipv6": d.ipv6, "allowed_subnets": d.allowed_subnets}
+                for d in devices
+            ],
             "rules": [
                 {"destination": r.destination, "action": r.action,
                  "port_type": r.port_type, "port_range": r.port_range}

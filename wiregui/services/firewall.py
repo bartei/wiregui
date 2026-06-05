@@ -101,10 +101,24 @@ async def remove_user_chain(user_id: str) -> None:
         logger.debug("Remove user chain {}: {}", chain, e)
 
 
-async def add_device_jump_rule(user_id: str, device_ipv4: str | None, device_ipv6: str | None) -> None:
-    """Add jump rules in the forward chain to route device traffic to the user chain."""
+async def add_device_jump_rule(
+    user_id: str,
+    device_ipv4: str | None,
+    device_ipv6: str | None,
+    allowed_subnets: list[str] | None = None,
+) -> None:
+    """Add jump rules in the forward chain to route device traffic to the user chain.
+    
+    Args:
+        user_id: User ID for the chain
+        device_ipv4: Device tunnel IPv4 address
+        device_ipv6: Device tunnel IPv6 address
+        allowed_subnets: Additional relay subnets this device routes
+    """
     chain = _user_chain_name(user_id)
     commands = []
+    
+    # Add jump rules for tunnel IPs
     if device_ipv4:
         commands.append(
             f"add rule inet {TABLE_NAME} forward ip saddr {device_ipv4} jump {chain}"
@@ -113,9 +127,25 @@ async def add_device_jump_rule(user_id: str, device_ipv4: str | None, device_ipv
         commands.append(
             f"add rule inet {TABLE_NAME} forward ip6 saddr {device_ipv6} jump {chain}"
         )
+    
+    # Add jump rules for relay subnets
+    if allowed_subnets:
+        for subnet in allowed_subnets:
+            if ":" in subnet:
+                # IPv6
+                commands.append(
+                    f"add rule inet {TABLE_NAME} forward ip6 saddr {subnet} jump {chain}"
+                )
+            else:
+                # IPv4
+                commands.append(
+                    f"add rule inet {TABLE_NAME} forward ip saddr {subnet} jump {chain}"
+                )
+    
     if commands:
         await _nft_batch(commands)
-        logger.debug("Jump rules added for device {}/{} -> {}", device_ipv4, device_ipv6, chain)
+        logger.debug("Jump rules added for device {}/{} + {} subnets -> {}", 
+                    device_ipv4, device_ipv6, len(allowed_subnets or []), chain)
 
 
 async def apply_rule(user_id: str, destination: str, action: str, port_type: str | None = None, port_range: str | None = None) -> None:
@@ -133,7 +163,7 @@ async def rebuild_all_rules(users_devices_rules: list[dict]) -> None:
 
     Args:
         users_devices_rules: list of dicts with keys:
-            user_id, devices (list of {ipv4, ipv6}), rules (list of {destination, action, port_type, port_range})
+            user_id, devices (list of {ipv4, ipv6, allowed_subnets}), rules (list of {destination, action, port_type, port_range})
     """
     # Discover existing user_ chains so we can remove orphans
     existing_user_chains = await _list_user_chains()
@@ -164,10 +194,20 @@ async def rebuild_all_rules(users_devices_rules: list[dict]) -> None:
         user_id = entry["user_id"]
         chain = _user_chain_name(user_id)
         for dev in entry.get("devices", []):
+            # Add jump rules for tunnel IPs
             if dev.get("ipv4"):
                 commands.append(f"add rule inet {TABLE_NAME} forward ip saddr {dev['ipv4']} jump {chain}")
             if dev.get("ipv6"):
                 commands.append(f"add rule inet {TABLE_NAME} forward ip6 saddr {dev['ipv6']} jump {chain}")
+            
+            # Add jump rules for relay subnets
+            for subnet in dev.get("allowed_subnets", []):
+                if ":" in subnet:
+                    # IPv6
+                    commands.append(f"add rule inet {TABLE_NAME} forward ip6 saddr {subnet} jump {chain}")
+                else:
+                    # IPv4
+                    commands.append(f"add rule inet {TABLE_NAME} forward ip saddr {subnet} jump {chain}")
 
     # Remove orphaned user chains (must happen after forward chain is flushed
     # so there are no remaining jump references to these chains)
