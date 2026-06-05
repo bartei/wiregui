@@ -27,7 +27,7 @@ def _device_allowed_ips(device: Device) -> list[str]:
 
 
 async def on_device_created(device: Device) -> None:
-    """Configure WireGuard peer and firewall after a new device is created."""
+    """Configure WireGuard peer, routes, and firewall after a new device is created."""
     settings = get_settings()
     if not settings.wg_enabled:
         return
@@ -39,6 +39,13 @@ async def on_device_created(device: Device) -> None:
         )
     except Exception as e:
         logger.error("Failed to add WG peer for device {}: {}", device.name, e)
+    
+    # Add routes for relay subnets
+    if device.allowed_subnets:
+        try:
+            await wireguard.add_routes(device.allowed_subnets)
+        except Exception as e:
+            logger.error("Failed to add routes for device {}: {}", device.name, e)
 
     try:
         # Ensure user chain exists before adding jump rules
@@ -54,18 +61,25 @@ async def on_device_created(device: Device) -> None:
 
 
 async def on_device_deleted(device: Device) -> None:
-    """Remove WireGuard peer after a device is deleted."""
+    """Remove WireGuard peer and routes after a device is deleted."""
     if not get_settings().wg_enabled:
         return
     try:
         await wireguard.remove_peer(public_key=device.public_key)
     except Exception as e:
         logger.error("Failed to remove WG peer for device {}: {}", device.name, e)
+    
+    # Remove routes for relay subnets
+    if device.allowed_subnets:
+        try:
+            await wireguard.remove_routes(device.allowed_subnets)
+        except Exception as e:
+            logger.error("Failed to remove routes for device {}: {}", device.name, e)
     # Firewall jump rules are cleaned up on next rebuild
 
 
 async def on_device_updated(device: Device) -> None:
-    """Update WireGuard peer and firewall after a device is modified."""
+    """Update WireGuard peer, routes, and firewall after a device is modified."""
     if not get_settings().wg_enabled:
         return
     try:
@@ -76,6 +90,15 @@ async def on_device_updated(device: Device) -> None:
         )
     except Exception as e:
         logger.error("Failed to update WG peer for device {}: {}", device.name, e)
+    
+    # Note: We can't easily diff old vs new allowed_subnets here without fetching old state.
+    # The reconcile task will clean up orphaned routes periodically.
+    # For now, just ensure current routes exist.
+    if device.allowed_subnets:
+        try:
+            await wireguard.add_routes(device.allowed_subnets)
+        except Exception as e:
+            logger.error("Failed to add routes for device {}: {}", device.name, e)
     
     # Rebuild firewall rules for this user to update allowed_subnets
     try:

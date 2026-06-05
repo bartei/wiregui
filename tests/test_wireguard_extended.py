@@ -7,6 +7,8 @@ from wiregui.services.wireguard import (
     set_private_key,
     set_listen_port,
     configure_interface,
+    add_routes,
+    remove_routes,
 )
 
 
@@ -112,3 +114,91 @@ async def test_configure_interface_sets_key_and_port(mock_session_cls, mock_run)
     assert args[0:3] == ["wg", "set", "wg-test"]
     assert "private-key" in args
     assert "listen-port" in args
+
+
+# ========== add_routes ==========
+
+
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_add_routes_ipv4(mock_run):
+    """add_routes should call ip route add for IPv4 subnets."""
+    mock_run.return_value = ""
+    await add_routes(["192.168.1.0/24", "10.20.0.0/16"], iface="wg-test")
+    
+    assert mock_run.await_count == 2
+    calls = [c[0][0] for c in mock_run.call_args_list]
+    assert calls[0] == ["ip", "-4", "route", "add", "192.168.1.0/24", "dev", "wg-test"]
+    assert calls[1] == ["ip", "-4", "route", "add", "10.20.0.0/16", "dev", "wg-test"]
+
+
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_add_routes_ipv6(mock_run):
+    """add_routes should call ip -6 route add for IPv6 subnets."""
+    mock_run.return_value = ""
+    await add_routes(["fd00:1::/64", "fd00:2::/48"], iface="wg-test")
+    
+    assert mock_run.await_count == 2
+    calls = [c[0][0] for c in mock_run.call_args_list]
+    assert calls[0] == ["ip", "-6", "route", "add", "fd00:1::/64", "dev", "wg-test"]
+    assert calls[1] == ["ip", "-6", "route", "add", "fd00:2::/48", "dev", "wg-test"]
+
+
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_add_routes_mixed(mock_run):
+    """add_routes should handle mixed IPv4 and IPv6."""
+    mock_run.return_value = ""
+    await add_routes(["192.168.1.0/24", "fd00:1::/64"], iface="wg-test")
+    
+    assert mock_run.await_count == 2
+    calls = [c[0][0] for c in mock_run.call_args_list]
+    assert calls[0] == ["ip", "-4", "route", "add", "192.168.1.0/24", "dev", "wg-test"]
+    assert calls[1] == ["ip", "-6", "route", "add", "fd00:1::/64", "dev", "wg-test"]
+
+
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_add_routes_empty_list(mock_run):
+    """add_routes with empty list should not call ip route."""
+    await add_routes([], iface="wg-test")
+    mock_run.assert_not_awaited()
+
+
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_add_routes_already_exists(mock_run):
+    """add_routes should not fail if route already exists."""
+    mock_run.side_effect = RuntimeError("RTNETLINK answers: File exists")
+    # Should not raise
+    await add_routes(["192.168.1.0/24"], iface="wg-test")
+    mock_run.assert_awaited_once()
+
+
+# ========== remove_routes ==========
+
+
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_remove_routes_ipv4(mock_run):
+    """remove_routes should call ip route del for IPv4 subnets."""
+    mock_run.return_value = ""
+    await remove_routes(["192.168.1.0/24", "10.20.0.0/16"], iface="wg-test")
+    
+    assert mock_run.await_count == 2
+    calls = [c[0][0] for c in mock_run.call_args_list]
+    assert calls[0] == ["ip", "-4", "route", "del", "192.168.1.0/24", "dev", "wg-test"]
+    assert calls[1] == ["ip", "-4", "route", "del", "10.20.0.0/16", "dev", "wg-test"]
+
+
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_remove_routes_ipv6(mock_run):
+    """remove_routes should call ip -6 route del for IPv6 subnets."""
+    mock_run.return_value = ""
+    await remove_routes(["fd00:1::/64"], iface="wg-test")
+    
+    mock_run.assert_awaited_once_with(["ip", "-6", "route", "del", "fd00:1::/64", "dev", "wg-test"])
+
+
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_remove_routes_not_found(mock_run):
+    """remove_routes should not fail if route doesn't exist."""
+    mock_run.side_effect = RuntimeError("RTNETLINK answers: No such process")
+    # Should not raise
+    await remove_routes(["192.168.1.0/24"], iface="wg-test")
+    mock_run.assert_awaited_once()
