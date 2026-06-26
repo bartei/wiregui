@@ -8,9 +8,43 @@ from sqlmodel import select
 from wiregui.models.device import Device
 from wiregui.models.rule import Rule
 from wiregui.models.user import User
-from wiregui.utils.network import allocate_ipv4, allocate_ipv6
+from wiregui.utils.network import allocate_ipv4, allocate_ipv6, parse_subnet_list
 from wiregui.utils.ordering import assign_priorities
 from wiregui.utils.wg_conf import build_client_config
+
+
+# --- Relay subnet parsing/validation ---
+
+
+def test_parse_subnet_list_valid_v4_and_v6():
+    assert parse_subnet_list("192.168.1.0/24, 10.20.0.0/16, fd00:1::/64") == [
+        "192.168.1.0/24", "10.20.0.0/16", "fd00:1::/64",
+    ]
+
+
+def test_parse_subnet_list_empty_and_whitespace():
+    assert parse_subnet_list("") == []
+    assert parse_subnet_list("  ,  ,") == []
+
+
+def test_parse_subnet_list_normalizes_host_bits():
+    # Host bits are masked off so the value is a clean network.
+    assert parse_subnet_list("192.168.1.5/24") == ["192.168.1.0/24"]
+
+
+def test_parse_subnet_list_bare_ip_becomes_host_route():
+    assert parse_subnet_list("10.0.0.1") == ["10.0.0.1/32"]
+
+
+def test_parse_subnet_list_rejects_invalid_cidr():
+    with pytest.raises(ValueError):
+        parse_subnet_list("not-a-subnet")
+
+
+def test_parse_subnet_list_rejects_injection_attempt():
+    # A value crafted to inject an extra nft command must be rejected, not passed through.
+    with pytest.raises(ValueError):
+        parse_subnet_list("10.0.0.0/24 jump evil")
 
 
 # --- Rule priority ordering ---

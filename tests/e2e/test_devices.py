@@ -30,3 +30,8 @@ async def test_add_device_requires_name(page: Page, test_user: UserModel):
     await expect(page.get_by_text("New Device")).to_be_visible(timeout=5_000)
     await page.get_by_role("button", name="Create").click()
     await expect(page.get_by_text("Device name is required")).to_be_visible(timeout=5_000)
+
+
+# Note: relay/site-to-site subnets are an admin-only capability and are not
+# exposed on the end-user device page, so the relay e2e coverage lives in
+# tests/e2e/test_admin_devices.py (test_create_device_with_relay_subnets).

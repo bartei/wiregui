@@ -186,3 +186,58 @@ async def get_peers(iface: str | None = None) -> list[PeerInfo]:
             tx_bytes=tx_bytes,
         ))
     return peers
+
+
+async def add_routes(subnets: list[str], iface: str | None = None) -> None:
+    """Add IP routes for relay subnets through the WireGuard interface.
+    
+    Args:
+        subnets: List of CIDR subnets to route through WireGuard
+        iface: WireGuard interface name (defaults to config value)
+    """
+    if not subnets:
+        return
+    
+    settings = get_settings()
+    iface = iface or settings.wg_interface
+    
+    for subnet in subnets:
+        try:
+            if ":" in subnet:
+                # IPv6
+                await _run(["ip", "-6", "route", "add", subnet, "dev", iface])
+            else:
+                # IPv4
+                await _run(["ip", "-4", "route", "add", subnet, "dev", iface])
+            logger.debug("Route added: {} via {}", subnet, iface)
+        except RuntimeError as e:
+            # Route might already exist, log but don't fail
+            if "File exists" not in str(e):
+                logger.warning("Failed to add route for {}: {}", subnet, e)
+
+
+async def remove_routes(subnets: list[str], iface: str | None = None) -> None:
+    """Remove IP routes for relay subnets.
+    
+    Args:
+        subnets: List of CIDR subnets to remove routes for
+        iface: WireGuard interface name (defaults to config value)
+    """
+    if not subnets:
+        return
+    
+    settings = get_settings()
+    iface = iface or settings.wg_interface
+    
+    for subnet in subnets:
+        try:
+            if ":" in subnet:
+                # IPv6
+                await _run(["ip", "-6", "route", "del", subnet, "dev", iface])
+            else:
+                # IPv4
+                await _run(["ip", "-4", "route", "del", subnet, "dev", iface])
+            logger.debug("Route removed: {} via {}", subnet, iface)
+        except RuntimeError as e:
+            # Route might not exist, log but don't fail
+            logger.debug("Failed to remove route for {}: {}", subnet, e)
