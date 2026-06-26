@@ -6,9 +6,42 @@ import pytest
 from sqlmodel import select
 
 from wiregui.models.device import Device
+from wiregui.models.rule import Rule
 from wiregui.models.user import User
 from wiregui.utils.network import allocate_ipv4, allocate_ipv6
+from wiregui.utils.ordering import assign_priorities
 from wiregui.utils.wg_conf import build_client_config
+
+
+# --- Rule priority ordering ---
+
+
+def test_assign_priorities_spaces_in_order():
+    result = assign_priorities(["a", "b", "c"])
+    assert result == {"a": 10, "b": 20, "c": 30}
+
+
+def test_assign_priorities_empty():
+    assert assign_priorities([]) == {}
+
+
+def test_assign_priorities_preserves_given_order():
+    # Order of the input sequence is what determines priority, not the id values.
+    result = assign_priorities(["z", "a", "m"])
+    assert result["z"] < result["a"] < result["m"]
+
+
+async def test_rule_priority_defaults_to_100(session):
+    user = User(email="rule-default@example.com")
+    session.add(user)
+    await session.flush()
+
+    rule = Rule(action="drop", destination="0.0.0.0/0", user_id=user.id)
+    session.add(rule)
+    await session.flush()
+    await session.refresh(rule)
+
+    assert rule.priority == 100
 
 
 # --- IP allocation ---

@@ -150,6 +150,36 @@ async def test_rebuild_all_rules(mock_batch, mock_list):
     assert any("10.0.0.1" in c and "jump" in c for c in cmds)
 
 
+@patch("wiregui.services.firewall._list_user_chains", new_callable=AsyncMock, return_value=set())
+@patch("wiregui.services.firewall._nft_batch", new_callable=AsyncMock)
+async def test_rebuild_all_rules_emits_in_priority_order(mock_batch, mock_list):
+    """Rules must be added to the chain in ascending priority order, regardless of
+    the order they arrive in. nftables evaluates top-to-bottom, so a high-priority-
+    number "drop all" must be appended after the lower-priority "accept" rules.
+    """
+    from wiregui.services.firewall import rebuild_all_rules
+
+    # Intentionally pass them out of order: drop-all (priority 30) first.
+    await rebuild_all_rules([
+        {
+            "user_id": "user-1",
+            "devices": [],
+            "rules": [
+                {"destination": "0.0.0.0/0", "action": "drop", "port_type": None, "port_range": None, "priority": 30},
+                {"destination": "10.1.0.0/16", "action": "accept", "port_type": None, "port_range": None, "priority": 10},
+                {"destination": "10.2.0.0/16", "action": "accept", "port_type": None, "port_range": None, "priority": 20},
+            ],
+        }
+    ])
+
+    cmds = mock_batch.call_args[0][0]
+    add_rule_cmds = [c for c in cmds if c.startswith("add rule") and "user_" in c and "jump" not in c]
+    # Order of the three filter rules within the user chain:
+    assert add_rule_cmds[0].endswith("ip daddr 10.1.0.0/16 accept")
+    assert add_rule_cmds[1].endswith("ip daddr 10.2.0.0/16 accept")
+    assert add_rule_cmds[2].endswith("ip daddr 0.0.0.0/0 drop")
+
+
 @patch("wiregui.services.firewall._nft_batch", new_callable=AsyncMock)
 async def test_setup_masquerade(mock_batch):
     from wiregui.services.firewall import setup_masquerade

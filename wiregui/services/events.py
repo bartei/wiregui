@@ -77,18 +77,16 @@ async def on_device_updated(device: Device) -> None:
 
 
 async def on_rule_created(rule: Rule) -> None:
-    """Apply a new firewall rule."""
+    """Apply a new firewall rule by rebuilding the user's chain.
+
+    Rebuilding (rather than appending) ensures the new rule lands at its
+    correct position according to its priority, not just at the end of the chain.
+    """
     if not get_settings().wg_enabled:
         return
     if rule.user_id is None:
         return  # global rules handled via rebuild
-    try:
-        await firewall.apply_rule(
-            str(rule.user_id), rule.destination, rule.action,
-            rule.port_type, rule.port_range,
-        )
-    except Exception as e:
-        logger.error("Failed to apply firewall rule {}: {}", rule.id, e)
+    await _rebuild_user_chain(str(rule.user_id))
 
 
 async def on_rule_updated(rule: Rule) -> None:
@@ -109,6 +107,13 @@ async def on_rule_deleted(rule: Rule) -> None:
     await _rebuild_user_chain(str(rule.user_id))
 
 
+async def on_rules_reordered(user_id: str) -> None:
+    """Rebuild a user's chain after their rules were reordered (priorities changed)."""
+    if not get_settings().wg_enabled:
+        return
+    await _rebuild_user_chain(user_id)
+
+
 async def _rebuild_user_chain(user_id: str) -> None:
     """Flush and rebuild a single user's firewall chain from current DB rules."""
     try:
@@ -117,6 +122,7 @@ async def _rebuild_user_chain(user_id: str) -> None:
         async with async_session() as session:
             rules = (await session.execute(
                 sel(Rule).where(Rule.user_id == UUID(user_id))
+                .order_by(Rule.priority, Rule.inserted_at)
             )).scalars().all()
 
             devices = (await session.execute(
@@ -128,7 +134,8 @@ async def _rebuild_user_chain(user_id: str) -> None:
             "devices": [{"ipv4": d.ipv4, "ipv6": d.ipv6} for d in devices],
             "rules": [
                 {"destination": r.destination, "action": r.action,
-                 "port_type": r.port_type, "port_range": r.port_range}
+                 "port_type": r.port_type, "port_range": r.port_range,
+                 "priority": r.priority}
                 for r in rules
             ],
         }])

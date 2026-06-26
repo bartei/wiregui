@@ -19,7 +19,7 @@ async def list_rules(
     session: AsyncSession = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
-    result = await session.execute(select(Rule).order_by(Rule.inserted_at.desc()))
+    result = await session.execute(select(Rule).order_by(Rule.priority, Rule.inserted_at))
     return result.scalars().all()
 
 

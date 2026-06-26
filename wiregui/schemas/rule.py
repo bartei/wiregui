@@ -10,6 +10,7 @@ class RuleRead(BaseModel):
     destination: str
     port_type: str | None
     port_range: str | None
+    priority: int
     user_id: UUID | None
     inserted_at: datetime
     updated_at: datetime
@@ -20,6 +21,7 @@ class RuleCreate(BaseModel):
     destination: str
     port_type: str | None = None
     port_range: str | None = None
+    priority: int = 100
     user_id: UUID | None = None
 
 
@@ -28,4 +30,5 @@ class RuleUpdate(BaseModel):
     destination: str | None = None
     port_type: str | None = None
     port_range: str | None = None
+    priority: int | None = None
     user_id: UUID | None = None

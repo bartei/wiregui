@@ -9,6 +9,7 @@ from wiregui.auth.passwords import hash_password
 from wiregui.models.configuration import Configuration
 from wiregui.models.device import Device
 from wiregui.models.oidc_connection import OIDCConnection
+from wiregui.models.rule import Rule
 from wiregui.models.user import User
 from wiregui.services.wireguard import PeerInfo
 from wiregui.utils.time import utcnow
@@ -143,6 +144,48 @@ async def test_collector_persists_byte_counters_above_int32(session, monkeypatch
     assert refreshed.remote_ip == "9.9.9.9"
     assert refreshed.latest_handshake is not None
     assert labels["pk-bigbytes"]["user_email"] == "bigbytes@test.com"
+
+
+# ========== Firewall rule ordering (events bridge) ==========
+
+
+async def test_rebuild_user_chain_orders_rules_by_priority(session, monkeypatch):
+    """Regression: rebuilding a user's chain must pass rules to the firewall in
+    ascending priority order so a 'drop all' placed last is evaluated last.
+    Previously the rules were queried with no ORDER BY, so a catch-all drop could
+    end up before the accept rules and block all allowed traffic.
+    """
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def mock_session():
+        yield session
+
+    monkeypatch.setattr("wiregui.services.events.async_session", mock_session)
+
+    user = User(email="ordered@test.com")
+    session.add(user)
+    await session.flush()
+
+    # Insert deliberately out of priority order.
+    session.add(Rule(action="drop", destination="0.0.0.0/0", priority=30, user_id=user.id))
+    session.add(Rule(action="accept", destination="10.2.0.0/16", priority=20, user_id=user.id))
+    session.add(Rule(action="accept", destination="10.1.0.0/16", priority=10, user_id=user.id))
+    await session.flush()
+
+    captured = {}
+
+    async def fake_rebuild(entries):
+        captured["entries"] = entries
+
+    monkeypatch.setattr("wiregui.services.firewall.rebuild_all_rules", fake_rebuild)
+
+    from wiregui.services.events import _rebuild_user_chain
+    await _rebuild_user_chain(str(user.id))
+
+    rules = captured["entries"][0]["rules"]
+    assert [r["destination"] for r in rules] == ["10.1.0.0/16", "10.2.0.0/16", "0.0.0.0/0"]
+    assert [r["priority"] for r in rules] == [10, 20, 30]
 
 
 # ========== Reconciliation task ==========

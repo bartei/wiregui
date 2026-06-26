@@ -20,7 +20,9 @@ async def reconcile() -> None:
     # Get all devices and rules from DB
     async with async_session() as session:
         devices = (await session.execute(select(Device))).scalars().all()
-        rules = (await session.execute(select(Rule))).scalars().all()
+        rules = (await session.execute(
+            select(Rule).order_by(Rule.priority, Rule.inserted_at)
+        )).scalars().all()
 
     expected_keys = {d.public_key for d in devices}
     device_map = {d.public_key: d for d in devices}
@@ -78,7 +80,8 @@ async def _reconcile_firewall(devices: list[Device], rules: list[Rule]) -> None:
             "devices": [{"ipv4": d.ipv4, "ipv6": d.ipv6} for d in user_devices],
             "rules": [
                 {"destination": r.destination, "action": r.action,
-                 "port_type": r.port_type, "port_range": r.port_range}
+                 "port_type": r.port_type, "port_range": r.port_range,
+                 "priority": r.priority}
                 for r in user_rules
             ],
         })

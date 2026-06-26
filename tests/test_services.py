@@ -59,10 +59,11 @@ async def test_on_device_created_handles_wg_error(mock_wg, mock_fw, mock_setting
 
 
 @patch("wiregui.services.events.get_settings")
-@patch("wiregui.services.events.firewall")
-async def test_on_rule_created_calls_apply_rule(mock_fw, mock_settings):
+@patch("wiregui.services.events._rebuild_user_chain", new_callable=AsyncMock)
+async def test_on_rule_created_rebuilds_user_chain(mock_rebuild, mock_settings):
+    # A new rule rebuilds the whole user chain (rather than appending) so the rule
+    # is placed at its correct position according to priority order.
     mock_settings.return_value.wg_enabled = True
-    mock_fw.apply_rule = AsyncMock()
 
     rule = Rule(
         action="accept",
@@ -73,6 +74,4 @@ async def test_on_rule_created_calls_apply_rule(mock_fw, mock_settings):
     )
     await on_rule_created(rule)
 
-    mock_fw.apply_rule.assert_awaited_once_with(
-        "00000000-0000-0000-0000-000000000000", "10.0.0.0/8", "accept", "tcp", "80",
-    )
+    mock_rebuild.assert_awaited_once_with("00000000-0000-0000-0000-000000000000")

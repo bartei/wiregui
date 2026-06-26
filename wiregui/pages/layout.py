@@ -94,6 +94,6 @@ def layout(title: str = "WireGUI"):
             ui.label("Admin").classes("text-subtitle2 q-pa-sm text-grey")
             ui.item("Users", on_click=lambda: ui.navigate.to("/admin/users")).classes("cursor-pointer")
             ui.item("All Devices", on_click=lambda: ui.navigate.to("/admin/devices")).classes("cursor-pointer")
-            ui.item("Rules", on_click=lambda: ui.navigate.to("/admin/rules")).classes("cursor-pointer")
+            ui.item("Firewall Rules", on_click=lambda: ui.navigate.to("/admin/rules")).classes("cursor-pointer")
             ui.item("Settings", on_click=lambda: ui.navigate.to("/admin/settings")).classes("cursor-pointer")
             ui.item("Diagnostics", on_click=lambda: ui.navigate.to("/admin/diagnostics")).classes("cursor-pointer")

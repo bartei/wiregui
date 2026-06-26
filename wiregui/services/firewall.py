@@ -150,8 +150,11 @@ async def rebuild_all_rules(users_devices_rules: list[dict]) -> None:
         commands.append(f"add chain inet {TABLE_NAME} {chain}")
         commands.append(f"flush chain inet {TABLE_NAME} {chain}")
 
-        # Add rules
-        for rule in entry.get("rules", []):
+        # Add rules in priority order — nftables evaluates a chain top-to-bottom,
+        # so the lowest-priority number must be added first. Sort defensively here
+        # so chain order is deterministic regardless of how the caller ordered them.
+        ordered_rules = sorted(entry.get("rules", []), key=lambda r: r.get("priority", 100))
+        for rule in ordered_rules:
             expr = _build_rule_expr(
                 rule["destination"], rule["action"],
                 rule.get("port_type"), rule.get("port_range"),

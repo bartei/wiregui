@@ -15,6 +15,11 @@ class Rule(SQLModel, table=True):
     port_type: str | None = None  # "tcp" | "udp" | None (any)
     port_range: str | None = None  # e.g. "80-443" or "22" or None (any)
 
+    # Evaluation order within a chain: lower runs first (top of the nftables chain).
+    # nftables evaluates rules top-to-bottom, so e.g. a "drop all" must have a higher
+    # priority number than the "accept" rules that should be matched before it.
+    priority: int = Field(default=100, index=True)
+
     user_id: UUID | None = Field(default=None, foreign_key="users.id", index=True)
 
     inserted_at: datetime = Field(default_factory=utcnow)
