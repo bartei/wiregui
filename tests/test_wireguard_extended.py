@@ -9,6 +9,8 @@ from wiregui.services.wireguard import (
     configure_interface,
     add_routes,
     remove_routes,
+    get_interface_routes,
+    sync_routes,
 )
 
 
@@ -202,3 +204,60 @@ async def test_remove_routes_not_found(mock_run):
     # Should not raise
     await remove_routes(["192.168.1.0/24"], iface="wg-test")
     mock_run.assert_awaited_once()
+
+
+# ========== get_interface_routes ==========
+
+
+@patch("wiregui.services.wireguard.get_settings")
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_get_interface_routes_parses_and_normalizes(mock_run, mock_settings):
+    """Parses `ip route show dev` output, skips default, normalizes host routes."""
+    mock_settings.return_value.wg_interface = "wg-test"
+    mock_run.side_effect = [
+        "10.60.1.0/24 proto kernel scope link src 10.60.1.1\n192.168.1.0/24 scope link\n10.0.0.5",
+        "fd00::/106 proto kernel scope link",
+    ]
+    routes = await get_interface_routes(iface="wg-test")
+    assert routes == {"10.60.1.0/24", "192.168.1.0/24", "10.0.0.5/32", "fd00::/106"}
+
+
+# ========== sync_routes ==========
+
+
+@patch("wiregui.services.wireguard.remove_routes", new_callable=AsyncMock)
+@patch("wiregui.services.wireguard.add_routes", new_callable=AsyncMock)
+@patch("wiregui.services.wireguard.get_interface_routes", new_callable=AsyncMock)
+@patch("wiregui.services.wireguard.get_settings")
+async def test_sync_routes_adds_missing_and_prunes_orphans(mock_settings, mock_get, mock_add, mock_remove):
+    """sync_routes adds expected-but-missing, removes orphans, and never touches tunnel nets."""
+    mock_settings.return_value.wg_interface = "wg-test"
+    mock_settings.return_value.wg_ipv4_network = "10.60.1.0/24"
+    mock_settings.return_value.wg_ipv6_network = "fd00::/106"
+    # Interface currently has: tunnel net, one expected subnet, one orphan.
+    mock_get.return_value = {"10.60.1.0/24", "192.168.1.0/24", "10.99.0.0/16"}
+
+    await sync_routes(["192.168.1.0/24", "10.20.0.0/16"], iface="wg-test")
+
+    mock_add.assert_awaited_once()
+    assert mock_add.call_args[0][0] == ["10.20.0.0/16"]
+    mock_remove.assert_awaited_once()
+    # Orphan removed; tunnel network preserved.
+    assert mock_remove.call_args[0][0] == ["10.99.0.0/16"]
+
+
+@patch("wiregui.services.wireguard.remove_routes", new_callable=AsyncMock)
+@patch("wiregui.services.wireguard.add_routes", new_callable=AsyncMock)
+@patch("wiregui.services.wireguard.get_interface_routes", new_callable=AsyncMock)
+@patch("wiregui.services.wireguard.get_settings")
+async def test_sync_routes_noop_when_in_sync(mock_settings, mock_get, mock_add, mock_remove):
+    """No add/remove calls when the interface already matches the expected set."""
+    mock_settings.return_value.wg_interface = "wg-test"
+    mock_settings.return_value.wg_ipv4_network = "10.60.1.0/24"
+    mock_settings.return_value.wg_ipv6_network = "fd00::/106"
+    mock_get.return_value = {"10.60.1.0/24", "192.168.1.0/24"}
+
+    await sync_routes(["192.168.1.0/24"], iface="wg-test")
+
+    mock_add.assert_not_awaited()
+    mock_remove.assert_not_awaited()

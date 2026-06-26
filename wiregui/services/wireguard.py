@@ -3,10 +3,16 @@
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
+from ipaddress import ip_network
 
 from loguru import logger
 
 from wiregui.config import get_settings
+
+
+def _normalize_cidr(value: str) -> str:
+    """Normalize a CIDR/host into canonical network form (e.g. 10.0.0.1 -> 10.0.0.1/32)."""
+    return str(ip_network(value, strict=False))
 
 
 @dataclass
@@ -241,3 +247,63 @@ async def remove_routes(subnets: list[str], iface: str | None = None) -> None:
         except RuntimeError as e:
             # Route might not exist, log but don't fail
             logger.debug("Failed to remove route for {}: {}", subnet, e)
+
+
+async def get_interface_routes(iface: str | None = None) -> set[str]:
+    """Return the set of normalized CIDR destinations currently routed via the interface."""
+    settings = get_settings()
+    iface = iface or settings.wg_interface
+
+    routes: set[str] = set()
+    for family in ("-4", "-6"):
+        try:
+            output = await _run(["ip", family, "route", "show", "dev", iface])
+        except RuntimeError:
+            continue
+        for line in output.splitlines():
+            line = line.strip()
+            if not line or line.startswith("default"):
+                continue
+            dest = line.split()[0]
+            try:
+                routes.add(_normalize_cidr(dest))
+            except ValueError:
+                continue
+    return routes
+
+
+async def sync_routes(expected_subnets, iface: str | None = None) -> None:
+    """Make the interface's relay routes exactly match ``expected_subnets``.
+
+    Adds missing routes and removes orphaned ones (e.g. left behind when a device
+    or one of its subnets is removed), so the kernel routing table converges to the
+    database. The WireGuard tunnel networks are never touched.
+    """
+    settings = get_settings()
+    iface = iface or settings.wg_interface
+
+    # Never remove the tunnel network routes managed by interface setup.
+    protected: set[str] = set()
+    for net in (settings.wg_ipv4_network, settings.wg_ipv6_network):
+        try:
+            protected.add(_normalize_cidr(net))
+        except ValueError:
+            pass
+
+    expected: set[str] = set()
+    for subnet in expected_subnets:
+        try:
+            expected.add(_normalize_cidr(subnet))
+        except ValueError:
+            logger.warning("Skipping invalid relay subnet during route sync: {}", subnet)
+
+    actual = await get_interface_routes(iface)
+    to_add = sorted(expected - actual)
+    to_remove = sorted((actual - expected) - protected)
+
+    if to_add:
+        await add_routes(to_add, iface)
+    if to_remove:
+        await remove_routes(to_remove, iface)
+    if to_add or to_remove:
+        logger.info("Synced relay routes on {}: +{} -{}", iface, len(to_add), len(to_remove))

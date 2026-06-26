@@ -11,6 +11,18 @@ from wiregui.models.rule import Rule
 from wiregui.services import firewall, wireguard
 
 
+async def _all_relay_subnets() -> set[str]:
+    """Union of relay subnets across every device currently in the database."""
+    from sqlmodel import select as sel
+
+    async with async_session() as session:
+        devices = (await session.execute(sel(Device))).scalars().all()
+    subnets: set[str] = set()
+    for d in devices:
+        subnets.update(d.allowed_subnets or [])
+    return subnets
+
+
 def _device_allowed_ips(device: Device) -> list[str]:
     """Build the allowed-ips list for a device peer (its tunnel addresses + relay subnets)."""
     ips = []
@@ -69,12 +81,13 @@ async def on_device_deleted(device: Device) -> None:
     except Exception as e:
         logger.error("Failed to remove WG peer for device {}: {}", device.name, e)
     
-    # Remove routes for relay subnets
+    # Prune routes for subnets this device used that no remaining device routes.
+    # sync_routes reconciles against the current DB, so shared subnets are kept.
     if device.allowed_subnets:
         try:
-            await wireguard.remove_routes(device.allowed_subnets)
+            await wireguard.sync_routes(await _all_relay_subnets())
         except Exception as e:
-            logger.error("Failed to remove routes for device {}: {}", device.name, e)
+            logger.error("Failed to prune routes for device {}: {}", device.name, e)
     # Firewall jump rules are cleaned up on next rebuild
 
 
@@ -91,14 +104,12 @@ async def on_device_updated(device: Device) -> None:
     except Exception as e:
         logger.error("Failed to update WG peer for device {}: {}", device.name, e)
     
-    # Note: We can't easily diff old vs new allowed_subnets here without fetching old state.
-    # The reconcile task will clean up orphaned routes periodically.
-    # For now, just ensure current routes exist.
-    if device.allowed_subnets:
-        try:
-            await wireguard.add_routes(device.allowed_subnets)
-        except Exception as e:
-            logger.error("Failed to add routes for device {}: {}", device.name, e)
+    # Reconcile routes against the full DB so subnets removed in this edit are
+    # pruned and newly added ones are created (sync_routes handles both directions).
+    try:
+        await wireguard.sync_routes(await _all_relay_subnets())
+    except Exception as e:
+        logger.error("Failed to sync routes for device {}: {}", device.name, e)
     
     # Rebuild firewall rules for this user to update allowed_subnets
     try:

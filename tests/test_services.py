@@ -133,6 +133,30 @@ async def test_on_device_created_with_relay_subnets(mock_wg, mock_fw, mock_setti
     )
 
 
+@patch("wiregui.services.events.get_settings")
+@patch("wiregui.services.events.wireguard")
+async def test_on_device_deleted_prunes_orphaned_routes(mock_wg, mock_settings, monkeypatch):
+    """Deleting a device reconciles routes against the remaining DB devices, so its
+    orphaned subnets are pruned while subnets still used elsewhere are kept."""
+    mock_settings.return_value.wg_enabled = True
+    mock_wg.remove_peer = AsyncMock()
+    mock_wg.sync_routes = AsyncMock()
+
+    # Remaining devices (after this delete) still route 10.20.0.0/16 but not the
+    # deleted device's 192.168.1.0/24.
+    async def fake_remaining():
+        return {"10.20.0.0/16"}
+
+    monkeypatch.setattr("wiregui.services.events._all_relay_subnets", fake_remaining)
+
+    device = _make_device(allowed_subnets=["192.168.1.0/24", "10.20.0.0/16"])
+    await on_device_deleted(device)
+
+    # sync_routes is called with the *remaining* expected set — 192.168.1.0/24 is
+    # therefore pruned, 10.20.0.0/16 is preserved.
+    mock_wg.sync_routes.assert_awaited_once_with({"10.20.0.0/16"})
+
+
 # --- Rule events ---
 
 

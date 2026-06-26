@@ -101,20 +101,17 @@ async def _reconcile_firewall(devices: list[Device], rules: list[Rule]) -> None:
 
 
 async def _reconcile_routes(devices: list[Device]) -> None:
-    """Ensure all relay subnet routes exist for devices in the database."""
-    all_subnets = []
+    """Make relay subnet routes exactly match the database.
+
+    Adds missing routes and removes orphans (e.g. subnets left over from devices
+    or subnets that were removed while the app was down), converging the kernel
+    routing table to DB state.
+    """
+    expected: set[str] = set()
     for device in devices:
-        if device.allowed_subnets:
-            all_subnets.extend(device.allowed_subnets)
-    
-    if not all_subnets:
-        logger.debug("No relay subnets configured, skipping route reconciliation")
-        return
-    
-    # Add routes for all relay subnets
-    # Note: add_routes is idempotent (ignores "File exists" errors)
+        expected.update(device.allowed_subnets or [])
+
     try:
-        await wireguard.add_routes(all_subnets)
-        logger.info("Reconciled {} relay subnet route(s)", len(all_subnets))
+        await wireguard.sync_routes(expected)
     except Exception as e:
         logger.error("Reconcile: route sync failed: {}", e)
