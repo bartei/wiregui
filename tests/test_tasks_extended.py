@@ -93,6 +93,58 @@ async def test_stats_unmatched_peer_ignored(session, monkeypatch):
         await _update_stats()  # Should not raise
 
 
+# ========== Metrics collector ==========
+
+
+async def test_collector_persists_byte_counters_above_int32(session, monkeypatch):
+    """Regression: WireGuard byte counters exceed the int32 range (~2 GB).
+
+    On a deployment, peers transferring >2 GB caused the collector's batched
+    commit to fail with asyncpg DataError ("value out of int32 range"), which
+    aborted the whole transaction so latest_handshake was never written and
+    every device showed as offline. The columns are BigInteger; verify a large
+    counter persists and the handshake/status fields are updated.
+    """
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def mock_session():
+        yield session
+
+    monkeypatch.setattr("wiregui.collector.async_session", mock_session)
+
+    user = User(email="bigbytes@test.com")
+    session.add(user)
+    await session.flush()
+
+    device = Device(name="bigdev", public_key="pk-bigbytes", user_id=user.id)
+    session.add(device)
+    await session.flush()
+
+    # 12.7 GB / 13.3 GB — both well past int32 max (2_147_483_647)
+    big_rx = 12_708_099_772
+    big_tx = 13_345_000_000
+    peers = [
+        PeerInfo(
+            public_key="pk-bigbytes",
+            endpoint="9.9.9.9:51820",
+            rx_bytes=big_rx,
+            tx_bytes=big_tx,
+            latest_handshake=utcnow(),
+        )
+    ]
+
+    from wiregui.collector import _update_db
+    labels = await _update_db(peers)
+
+    refreshed = await session.get(Device, device.id)
+    assert refreshed.rx_bytes == big_rx
+    assert refreshed.tx_bytes == big_tx
+    assert refreshed.remote_ip == "9.9.9.9"
+    assert refreshed.latest_handshake is not None
+    assert labels["pk-bigbytes"]["user_email"] == "bigbytes@test.com"
+
+
 # ========== Reconciliation task ==========
 
 

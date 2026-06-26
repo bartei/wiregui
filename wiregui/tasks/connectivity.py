@@ -12,7 +12,11 @@ from wiregui.models.connectivity_check import ConnectivityCheck
 from wiregui.services import notifications
 from wiregui.utils.time import utcnow
 
-DEFAULT_URL = "https://one.one.one.one/cdn-cgi/trace"
+# Target Cloudflare by IP, not by hostname: the check must measure WAN reachability
+# without depending on DNS resolution, which fails intermittently on some hosts
+# ([Errno -3] Temporary failure in name resolution) and produced false "down" reports.
+# Cloudflare's cert lists 1.1.1.1 as an IP SAN, so TLS verification still succeeds.
+DEFAULT_URL = "https://1.1.1.1/cdn-cgi/trace"
 DEFAULT_INTERVAL = 300  # 5 minutes
 
 

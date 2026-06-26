@@ -157,6 +157,25 @@ async def test_vpn_session_skips_disabled_users(session, monkeypatch):
 # --- Connectivity checks ---
 
 
+def test_connectivity_target_is_ip_literal_not_hostname():
+    """The reachability check must target an IP literal, not a DNS hostname.
+
+    Resolving a hostname (e.g. one.one.one.one) made the check fail with
+    "[Errno -3] Temporary failure in name resolution" during transient DNS
+    outages, producing false "down" reports. Targeting 1.1.1.1 by IP removes
+    the DNS dependency entirely.
+    """
+    import ipaddress
+    from urllib.parse import urlparse
+
+    from wiregui.tasks.connectivity import DEFAULT_URL
+
+    host = urlparse(DEFAULT_URL).hostname
+    # Raises ValueError if host is a name that would require DNS resolution.
+    ipaddress.ip_address(host)
+    assert host == "1.1.1.1"
+
+
 async def test_connectivity_check_success(session, monkeypatch):
     """Successful connectivity check should store result in DB."""
     from contextlib import asynccontextmanager

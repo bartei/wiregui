@@ -3,6 +3,7 @@ from datetime import datetime
 from wiregui.utils.time import utcnow
 from uuid import UUID, uuid4
 
+from sqlalchemy import BigInteger
 from sqlmodel import Field, JSON, Column, Relationship, SQLModel
 
 
@@ -36,8 +37,10 @@ class Device(SQLModel, table=True):
 
     # Peer stats (updated periodically from WireGuard)
     remote_ip: str | None = None
-    rx_bytes: int | None = None
-    tx_bytes: int | None = None
+    # BigInteger: WireGuard byte counters routinely exceed the int32 range (~2 GB);
+    # a plain Integer column overflows and aborts the collector's commit.
+    rx_bytes: int | None = Field(default=None, sa_column=Column(BigInteger))
+    tx_bytes: int | None = Field(default=None, sa_column=Column(BigInteger))
     latest_handshake: datetime | None = None
 
     user_id: UUID = Field(foreign_key="users.id", index=True)
