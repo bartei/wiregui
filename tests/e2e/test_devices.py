@@ -32,6 +32,18 @@ async def test_add_device_requires_name(page: Page, test_user: UserModel):
     await expect(page.get_by_text("Device name is required")).to_be_visible(timeout=5_000)
 
 
-# Note: relay/site-to-site subnets are an admin-only capability and are not
-# exposed on the end-user device page, so the relay e2e coverage lives in
-# tests/e2e/test_admin_devices.py (test_create_device_with_relay_subnets).
+async def test_user_device_dialog_has_no_relay_field(page: Page, test_user: UserModel):
+    """Relay/site-to-site subnets are admin-only — the field must not appear on
+    the end-user device dialog."""
+    await login(page)
+    await expect(page.get_by_text("My Devices")).to_be_visible(timeout=10_000)
+
+    await page.get_by_role("button", name="Add Device").click()
+    await expect(page.get_by_text("New Device")).to_be_visible(timeout=5_000)
+
+    # The admin-only relay subnet input must be absent here.
+    await expect(page.locator("input[aria-label='Routed Subnets (optional)']")).to_have_count(0)
+
+
+# Note: relay subnet acceptance coverage (create + invalid rejection) lives in
+# tests/e2e/test_admin_devices.py, since the capability is admin-only.

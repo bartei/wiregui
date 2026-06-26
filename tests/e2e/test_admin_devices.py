@@ -270,3 +270,26 @@ async def test_create_device_with_relay_subnets(page: Page, test_user):
         device = result.scalar_one()
         assert device.allowed_subnets == ["192.168.1.0/24", "10.20.0.0/16"]
         assert device.description == "Site-to-site gateway"
+
+
+async def test_create_device_with_invalid_subnet_rejected(page: Page, test_user):
+    """An invalid relay subnet must be rejected — no device is created."""
+    await _go_to_admin_devices(page)
+    await page.get_by_role("button", name="Add Device").click()
+    await expect(page.get_by_text("New Device")).to_be_visible(timeout=5_000)
+
+    await page.locator("input[aria-label='Device Name']").fill("bad-subnet-gw")
+    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    # Not a valid CIDR — must be rejected before any nft/route command runs.
+    await page.locator(".q-dialog input[aria-label='Routed Subnets (optional)']").fill("not-a-subnet")
+
+    await page.get_by_role("button", name="Create").click()
+
+    # No config dialog appears and the create dialog stays open (validation failed).
+    await expect(page.get_by_text("Config for bad-subnet-gw")).not_to_be_visible(timeout=3_000)
+    await expect(page.get_by_text("New Device")).to_be_visible()
+
+    # And nothing was persisted.
+    async with async_session() as session:
+        result = await session.execute(select(Device).where(Device.name == "bad-subnet-gw"))
+        assert result.first() is None
