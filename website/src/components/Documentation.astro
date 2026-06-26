@@ -1,0 +1,349 @@
+---
+const envVars = [
+  { var: 'WG_DATABASE_URL', default: 'postgresql+asyncpg://wiregui:wiregui@localhost/wiregui', desc: 'PostgreSQL connection string' },
+  { var: 'WG_REDIS_URL', default: 'redis://localhost:6379/0', desc: 'Valkey/Redis connection' },
+  { var: 'WG_SECRET_KEY', default: 'change-me-in-production', desc: 'JWT signing + Fernet encryption key' },
+  { var: 'WG_WG_ENABLED', default: 'false', desc: 'Enable WireGuard interface management' },
+  { var: 'WG_WG_ENDPOINT_HOST', default: 'localhost', desc: 'Public endpoint for client configs' },
+  { var: 'WG_WG_ENDPOINT_PORT', default: '51820', desc: 'WireGuard listen port' },
+  { var: 'WG_WG_IPV4_NETWORK', default: '10.3.2.0/24', desc: 'IPv4 tunnel network' },
+  { var: 'WG_WG_IPV6_NETWORK', default: 'fd00::3:2:0/120', desc: 'IPv6 tunnel network' },
+  { var: 'WG_ADMIN_EMAIL', default: 'admin@localhost', desc: 'Initial admin email' },
+  { var: 'WG_ADMIN_PASSWORD', default: '(auto-generated)', desc: 'Initial admin password' },
+  { var: 'WG_EXTERNAL_URL', default: 'http://localhost:13000', desc: 'Public-facing URL' },
+  { var: 'WG_IDP_CONFIG_FILE', default: '(none)', desc: 'Path to YAML with OIDC/SAML IdP definitions' },
+];
+
+const authMethods = [
+  {
+    title: 'Local Authentication',
+    description: 'Default email/password login. Can be disabled when SSO is configured.',
+    badge: 'Default',
+  },
+  {
+    title: 'OpenID Connect',
+    description: 'Integrate with Okta, Auth0, Keycloak, Azure AD, Google Workspace, or any OIDC-compliant provider.',
+    badge: 'SSO',
+  },
+  {
+    title: 'SAML 2.0',
+    description: 'Enterprise single sign-on with auto-provisioning and metadata configuration.',
+    badge: 'SSO',
+  },
+  {
+    title: 'Magic Links',
+    description: 'Passwordless email-based login. Requires SMTP configuration.',
+    badge: 'Passwordless',
+  },
+  {
+    title: 'TOTP',
+    description: 'Time-based one-time passwords. Compatible with Google Authenticator, Authy, 1Password.',
+    badge: 'MFA',
+  },
+  {
+    title: 'WebAuthn',
+    description: 'Hardware security keys (YubiKey) and platform authenticators (Touch ID, Windows Hello).',
+    badge: 'MFA',
+  },
+];
+---
+
+<section id="documentation" class="bg-slate-50 py-20 sm:py-28">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl text-center">
+      <h2 class="text-3xl font-bold tracking-tight text-navy-950 sm:text-4xl">
+        Documentation
+      </h2>
+      <p class="mt-4 text-lg text-slate-600">
+        Everything you need to deploy and configure WireGUI.
+        See the <a href="https://github.com/bartei/wiregui/wiki" target="_blank" rel="noopener noreferrer" class="font-medium text-navy-700 underline underline-offset-2 hover:text-navy-900">full wiki</a> for detailed guides.
+      </p>
+    </div>
+
+    <!-- Authentication methods -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="text-2xl font-bold text-navy-950">Authentication</h3>
+      <p class="mt-2 text-slate-600">
+        Multiple authentication methods can be used individually or in combination.
+      </p>
+      <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {authMethods.map(({ title, description, badge }) => (
+          <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+              <h4 class="font-semibold text-navy-950">{title}</h4>
+              <span class="rounded-full bg-navy-50 px-2.5 py-0.5 text-xs font-medium text-navy-700">{badge}</span>
+            </div>
+            <p class="mt-2 text-sm text-slate-600">{description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Deployment -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="text-2xl font-bold text-navy-950">Deployment</h3>
+      <p class="mt-2 text-slate-600">
+        WireGUI is distributed as a Docker image. Migrations run automatically on startup.
+      </p>
+
+      <div class="mt-6 grid gap-8 lg:grid-cols-2">
+        <!-- Reverse proxy -->
+        <div>
+          <h4 class="font-semibold text-navy-950">Reverse Proxy (nginx)</h4>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>server &#123;
+    listen 443 ssl;
+    server_name vpn.example.com;
+
+    location / &#123;
+        proxy_pass http://localhost:13000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    &#125;
+&#125;</code></pre>
+          </div>
+        </div>
+
+        <!-- Caddy -->
+        <div>
+          <h4 class="font-semibold text-navy-950">Reverse Proxy (Caddy)</h4>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>vpn.example.com &#123;
+    reverse_proxy localhost:13000
+&#125;</code></pre>
+          </div>
+          <p class="mt-3 text-sm text-slate-600">Caddy handles TLS certificates and WebSocket proxying automatically.</p>
+        </div>
+      </div>
+
+      <!-- Backup -->
+      <div class="mt-8 rounded-xl border border-slate-200 bg-white p-5">
+        <h4 class="font-semibold text-navy-950">Backup</h4>
+        <p class="mt-1 text-sm text-slate-600">
+          The database is the single source of truth. WireGuard interface state is fully reconciled from the database on startup.
+        </p>
+        <code class="mt-3 block rounded-lg bg-slate-100 px-4 py-2 text-sm text-navy-800">
+          docker compose exec postgres pg_dump -U wiregui wiregui &gt; backup.sql
+        </code>
+      </div>
+    </div>
+
+    <!-- LAN-to-Peer Routing -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="text-2xl font-bold text-navy-950">LAN-to-Peer Routing</h3>
+      <p class="mt-2 text-slate-600">
+        When <strong>"Allow local network to reach peers"</strong> is enabled in <em>Admin &rarr; Rules &rarr; Network Policies</em>,
+        WireGUI configures its firewall to accept traffic from your LAN to VPN peers. However, your LAN's
+        <strong>default gateway (router)</strong> also needs a static route so it knows to send traffic destined for
+        the WireGuard subnet to the WireGUI server instead of out to the internet.
+      </p>
+
+      <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <p class="text-sm text-amber-900">
+          <strong>Without this route</strong>, LAN devices can't reach VPN peers even if the policy is enabled &mdash;
+          the router will forward WireGuard-subnet traffic to its WAN gateway where it gets dropped.
+          The static route tells the router: <em>"to reach the VPN subnet, forward packets to the WireGUI server."</em>
+        </p>
+      </div>
+
+      <p class="mt-4 text-sm text-slate-600">
+        In the examples below, we use the default WireGUI subnets and assume the WireGUI server's LAN IP is <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">192.168.1.100</code>.
+        Adjust these values to match your environment.
+      </p>
+
+      <div class="mt-6 overflow-hidden rounded-xl border border-slate-200">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="border-b border-slate-200 bg-slate-50">
+              <tr>
+                <th scope="col" class="px-4 py-3 font-semibold text-navy-950">Value</th>
+                <th scope="col" class="px-4 py-3 font-semibold text-navy-950">Example</th>
+                <th scope="col" class="px-4 py-3 font-semibold text-navy-950">Source</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-2.5 text-slate-600">WireGuard IPv4 subnet</td>
+                <td class="px-4 py-2.5"><code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">10.3.2.0/24</code></td>
+                <td class="px-4 py-2.5 text-slate-500 text-xs"><code>WG_WG_IPV4_NETWORK</code></td>
+              </tr>
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-2.5 text-slate-600">WireGuard IPv6 subnet</td>
+                <td class="px-4 py-2.5"><code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">fd00::3:2:0/120</code></td>
+                <td class="px-4 py-2.5 text-slate-500 text-xs"><code>WG_WG_IPV6_NETWORK</code></td>
+              </tr>
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-2.5 text-slate-600">WireGUI server LAN IP</td>
+                <td class="px-4 py-2.5"><code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">192.168.1.100</code></td>
+                <td class="px-4 py-2.5 text-slate-500 text-xs">Your network</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="mt-8 grid gap-8 lg:grid-cols-2">
+        <!-- Linux gateway -->
+        <div>
+          <h4 class="font-semibold text-navy-950">Linux Gateway</h4>
+          <p class="mt-1 text-sm text-slate-600">Run on the gateway, or add to <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">/etc/network/interfaces</code> / netplan for persistence.</p>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code># IPv4
+ip route add 10.3.2.0/24 via 192.168.1.100
+
+# IPv6
+ip -6 route add fd00::3:2:0/120 via &lt;server-ipv6-lan-addr&gt;</code></pre>
+          </div>
+          <p class="mt-2 text-sm text-slate-600">To persist with <strong>netplan</strong>:</p>
+          <div class="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code># /etc/netplan/01-static-routes.yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      routes:
+        - to: 10.3.2.0/24
+          via: 192.168.1.100</code></pre>
+          </div>
+        </div>
+
+        <!-- Generic router UI -->
+        <div>
+          <h4 class="font-semibold text-navy-950">Generic Router (Web UI)</h4>
+          <p class="mt-1 text-sm text-slate-600">Most consumer and business routers have a static routes section under <em>Advanced</em> or <em>Routing</em>.</p>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead class="border-b border-slate-200 bg-slate-50">
+                  <tr>
+                    <th class="px-4 py-2 font-semibold text-navy-950">Field</th>
+                    <th class="px-4 py-2 font-semibold text-navy-950">Value</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                  <tr><td class="px-4 py-2 text-slate-600">Destination</td><td class="px-4 py-2"><code class="text-xs">10.3.2.0</code></td></tr>
+                  <tr><td class="px-4 py-2 text-slate-600">Subnet Mask</td><td class="px-4 py-2"><code class="text-xs">255.255.255.0</code></td></tr>
+                  <tr><td class="px-4 py-2 text-slate-600">Gateway / Next Hop</td><td class="px-4 py-2"><code class="text-xs">192.168.1.100</code></td></tr>
+                  <tr><td class="px-4 py-2 text-slate-600">Interface</td><td class="px-4 py-2 text-xs text-slate-500">LAN</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-8 grid gap-8 lg:grid-cols-2">
+        <!-- MikroTik / RouterOS -->
+        <div>
+          <h4 class="font-semibold text-navy-950">MikroTik / RouterOS</h4>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>/ip route add dst-address=10.3.2.0/24 \
+    gateway=192.168.1.100
+/ipv6 route add dst-address=fd00::3:2:0/120 \
+    gateway=&lt;server-ipv6-lan-addr&gt;</code></pre>
+          </div>
+        </div>
+
+        <!-- Ubiquiti / UniFi -->
+        <div>
+          <h4 class="font-semibold text-navy-950">Ubiquiti / EdgeOS / VyOS</h4>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>set protocols static route 10.3.2.0/24 \
+    next-hop 192.168.1.100
+set protocols static route6 fd00::3:2:0/120 \
+    next-hop &lt;server-ipv6-lan-addr&gt;
+commit; save</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-8 grid gap-8 lg:grid-cols-2">
+        <!-- OPNsense / pfSense -->
+        <div>
+          <h4 class="font-semibold text-navy-950">OPNsense / pfSense</h4>
+          <p class="mt-1 text-sm text-slate-600">Navigate to <em>System &rarr; Routes &rarr; Configuration</em> and add a new gateway and route.</p>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead class="border-b border-slate-200 bg-slate-50">
+                  <tr>
+                    <th class="px-4 py-2 font-semibold text-navy-950">Field</th>
+                    <th class="px-4 py-2 font-semibold text-navy-950">Value</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                  <tr><td class="px-4 py-2 text-slate-600">Destination network</td><td class="px-4 py-2"><code class="text-xs">10.3.2.0/24</code></td></tr>
+                  <tr><td class="px-4 py-2 text-slate-600">Gateway</td><td class="px-4 py-2"><code class="text-xs">192.168.1.100</code></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cisco IOS -->
+        <div>
+          <h4 class="font-semibold text-navy-950">Cisco IOS</h4>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>ip route 10.3.2.0 255.255.255.0 192.168.1.100
+ipv6 route fd00::3:2:0/120 &lt;server-ipv6-lan-addr&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verification -->
+      <div class="mt-8 rounded-xl border border-slate-200 bg-white p-5">
+        <h4 class="font-semibold text-navy-950">Verification</h4>
+        <p class="mt-1 text-sm text-slate-600">
+          From any LAN device, confirm the route is working:
+        </p>
+        <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+          <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code># Should show the WireGUI server (192.168.1.100) as the next hop
+traceroute 10.3.2.1
+
+# Ping a connected peer (the peer must be online)
+ping 10.3.2.2</code></pre>
+        </div>
+        <p class="mt-3 text-sm text-slate-600">
+          If the traceroute shows your WAN gateway instead of the WireGUI server, the static route is missing or not applied.
+        </p>
+      </div>
+    </div>
+
+    <!-- Configuration reference -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="text-2xl font-bold text-navy-950">Configuration Reference</h3>
+      <p class="mt-2 text-slate-600">
+        All settings use the <code class="rounded bg-slate-100 px-1.5 py-0.5 text-sm font-medium text-navy-700">WG_</code> prefix and can be set via environment variables or a <code class="rounded bg-slate-100 px-1.5 py-0.5 text-sm font-medium text-navy-700">.env</code> file.
+      </p>
+
+      <div class="mt-6 overflow-hidden rounded-xl border border-slate-200">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="border-b border-slate-200 bg-slate-50">
+              <tr>
+                <th scope="col" class="px-4 py-3 font-semibold text-navy-950">Variable</th>
+                <th scope="col" class="px-4 py-3 font-semibold text-navy-950">Default</th>
+                <th scope="col" class="px-4 py-3 font-semibold text-navy-950">Description</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {envVars.map(({ var: name, default: def, desc }) => (
+                <tr class="hover:bg-slate-50">
+                  <td class="whitespace-nowrap px-4 py-2.5">
+                    <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">{name}</code>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-2.5 text-xs text-slate-500">
+                    <code>{def}</code>
+                  </td>
+                  <td class="px-4 py-2.5 text-slate-600">{desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

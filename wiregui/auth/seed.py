@@ -33,8 +33,7 @@ async def seed_admin() -> None:
         await session.commit()
 
         logger.info("Admin user created: {}", settings.admin_email)
-        if settings.admin_password is None:
-            logger.warning("Generated admin password: {}", password)
+        logger.warning("Generated admin password: {}", password)
 
 
 async def ensure_server_keypair() -> None:

@@ -1,0 +1,88 @@
+<section id="getting-started" class="py-20 sm:py-28">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl text-center">
+      <h2 class="text-3xl font-bold tracking-tight text-navy-950 sm:text-4xl">
+        Up and running in minutes
+      </h2>
+      <p class="mt-4 text-lg text-slate-600">
+        Docker Compose is the recommended way to deploy WireGUI.
+      </p>
+    </div>
+
+    <div class="mx-auto mt-16 grid max-w-5xl gap-8 lg:grid-cols-2">
+      <!-- Docker deployment -->
+      <div>
+        <h3 class="flex items-center gap-2 text-lg font-semibold text-navy-950">
+          <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-navy-950 text-sm font-bold text-white" aria-hidden="true">1</span>
+          Production (Docker Compose)
+        </h3>
+        <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+          <div class="flex items-center gap-2 border-b border-white/10 px-4 py-2">
+            <span class="h-3 w-3 rounded-full bg-red-500/60" aria-hidden="true"></span>
+            <span class="h-3 w-3 rounded-full bg-yellow-500/60" aria-hidden="true"></span>
+            <span class="h-3 w-3 rounded-full bg-green-500/60" aria-hidden="true"></span>
+            <span class="ml-2 text-xs text-slate-400">terminal</span>
+          </div>
+          <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code><span class="text-slate-500"># Clone the repository</span>
+git clone https://github.com/bartei/wiregui.git
+cd wiregui
+
+<span class="text-slate-500"># Start everything</span>
+docker compose -f compose.prod.yml up -d</code></pre>
+        </div>
+        <p class="mt-3 text-sm text-slate-600">
+          The container runs migrations automatically, manages the WireGuard interface, and requires
+          <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-700">NET_ADMIN</code> +
+          <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-700">SYS_MODULE</code> capabilities.
+        </p>
+      </div>
+
+      <!-- Development setup -->
+      <div>
+        <h3 class="flex items-center gap-2 text-lg font-semibold text-navy-950">
+          <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-navy-950 text-sm font-bold text-white" aria-hidden="true">2</span>
+          Development
+        </h3>
+        <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+          <div class="flex items-center gap-2 border-b border-white/10 px-4 py-2">
+            <span class="h-3 w-3 rounded-full bg-red-500/60" aria-hidden="true"></span>
+            <span class="h-3 w-3 rounded-full bg-yellow-500/60" aria-hidden="true"></span>
+            <span class="h-3 w-3 rounded-full bg-green-500/60" aria-hidden="true"></span>
+            <span class="ml-2 text-xs text-slate-400">terminal</span>
+          </div>
+          <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code><span class="text-slate-500"># Install dependencies</span>
+uv sync
+
+<span class="text-slate-500"># Start PostgreSQL &amp; Valkey</span>
+docker compose up -d
+
+<span class="text-slate-500"># Run migrations and start</span>
+alembic upgrade head
+uv run python -m wiregui.main</code></pre>
+        </div>
+        <p class="mt-3 text-sm text-slate-600">
+          Open <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-700">http://localhost:13000</code>
+          &mdash; an admin account is created on first run (check the logs for the generated password).
+        </p>
+      </div>
+    </div>
+
+    <!-- Ports and requirements -->
+    <div class="mx-auto mt-12 max-w-5xl">
+      <div class="grid gap-4 sm:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 p-5">
+          <p class="text-sm font-semibold text-navy-950">Web UI & API</p>
+          <p class="mt-1 text-2xl font-bold text-navy-700">:13000 <span class="text-base font-normal text-slate-400">TCP</span></p>
+        </div>
+        <div class="rounded-xl border border-slate-200 p-5">
+          <p class="text-sm font-semibold text-navy-950">WireGuard VPN</p>
+          <p class="mt-1 text-2xl font-bold text-navy-700">:51820 <span class="text-base font-normal text-slate-400">UDP</span></p>
+        </div>
+        <div class="rounded-xl border border-slate-200 p-5">
+          <p class="text-sm font-semibold text-navy-950">Python</p>
+          <p class="mt-1 text-2xl font-bold text-navy-700">3.13+ <span class="text-base font-normal text-slate-400">required</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
