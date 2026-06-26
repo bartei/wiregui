@@ -1,13 +1,33 @@
 """IP address allocation for WireGuard tunnel addresses."""
 
 import random
-from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_network
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from wiregui.models.device import Device
+
+
+def parse_subnet_list(raw: str) -> list[str]:
+    """Parse a comma-separated string of CIDR subnets into validated, normalized values.
+
+    Each entry must be a valid IPv4/IPv6 network; host bits are masked off
+    (e.g. ``192.168.1.5/24`` -> ``192.168.1.0/24``). Raises ``ValueError`` on any
+    invalid entry. Validation is mandatory because these values are interpolated
+    into ``nft`` rules and ``ip route`` commands — rejecting non-CIDR input both
+    prevents command injection and stops one bad entry from failing the whole
+    firewall rebuild.
+    """
+    subnets: list[str] = []
+    for part in raw.split(","):
+        candidate = part.strip()
+        if not candidate:
+            continue
+        # ip_network raises ValueError for anything that isn't a clean CIDR.
+        subnets.append(str(ip_network(candidate, strict=False)))
+    return subnets
 
 
 async def allocate_ipv4(session: AsyncSession, network_cidr: str) -> str:

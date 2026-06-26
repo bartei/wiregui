@@ -36,6 +36,8 @@ async def reconcile() -> None:
             ips.append(f"{device.ipv4}/32")
         if device.ipv6:
             ips.append(f"{device.ipv6}/128")
+        if device.allowed_subnets:
+            ips.extend(device.allowed_subnets)
         try:
             await wireguard.add_peer(
                 public_key=device.public_key,
@@ -60,6 +62,9 @@ async def reconcile() -> None:
 
     # Rebuild all firewall rules from DB
     await _reconcile_firewall(devices, rules)
+    
+    # Reconcile routes for relay subnets
+    await _reconcile_routes(devices)
 
 
 async def _reconcile_firewall(devices: list[Device], rules: list[Rule]) -> None:
@@ -77,7 +82,10 @@ async def _reconcile_firewall(devices: list[Device], rules: list[Rule]) -> None:
 
         entries.append({
             "user_id": uid,
-            "devices": [{"ipv4": d.ipv4, "ipv6": d.ipv6} for d in user_devices],
+            "devices": [
+                {"ipv4": d.ipv4, "ipv6": d.ipv6, "allowed_subnets": d.allowed_subnets}
+                for d in user_devices
+            ],
             "rules": [
                 {"destination": r.destination, "action": r.action,
                  "port_type": r.port_type, "port_range": r.port_range,
@@ -90,3 +98,20 @@ async def _reconcile_firewall(devices: list[Device], rules: list[Rule]) -> None:
         await firewall.rebuild_all_rules(entries)
     except Exception as e:
         logger.error("Reconcile: firewall rebuild failed: {}", e)
+
+
+async def _reconcile_routes(devices: list[Device]) -> None:
+    """Make relay subnet routes exactly match the database.
+
+    Adds missing routes and removes orphans (e.g. subnets left over from devices
+    or subnets that were removed while the app was down), converging the kernel
+    routing table to DB state.
+    """
+    expected: set[str] = set()
+    for device in devices:
+        expected.update(device.allowed_subnets or [])
+
+    try:
+        await wireguard.sync_routes(expected)
+    except Exception as e:
+        logger.error("Reconcile: route sync failed: {}", e)
