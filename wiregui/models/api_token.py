@@ -13,7 +13,7 @@ class ApiToken(SQLModel, table=True):
     token_hash: str = Field(unique=True, index=True)
     expires_at: datetime | None = None
 
-    user_id: UUID = Field(foreign_key="users.id", index=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
 
     inserted_at: datetime = Field(default_factory=utcnow)
 

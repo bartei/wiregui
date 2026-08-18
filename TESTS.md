@@ -14,6 +14,7 @@
 - [x] `wiregui/auth/api_token.py` (100%) — covered via test_api_deps.py
 - [x] `wiregui/auth/saml.py` — full SAML flow tested via mock SimpleSAMLphp IdP (e2e)
 - [x] `wiregui/utils/server_key.py` (100%) — 3 tests: returns key, raises when missing, raises when empty
+- [x] `wiregui/services/users.py` (100%) — 4 tests in test_user_deletion.py: FK cascade over all five child tables, global rules/other users spared, delete_user_and_cleanup fires WG peer removal (issue #7)
 
 **Remaining unit test gaps (by coverage):**
 - [ ] `wiregui/auth/seed.py` (29%) — test seed_admin, seed_idp_providers with various YAML configs, ensure_server_keypair
@@ -45,6 +46,7 @@
 - [x] `tests/e2e/test_admin_rules.py` (7 tests) — list rules table, create accept/drop/global rules, edit action/destination, delete rule (all verified in DB)
 - [x] `tests/e2e/test_admin_settings.py` (9 tests) — client defaults save/reload, security toggles (local auth, VPN session, unprivileged), OIDC add/delete, SAML add/delete (all verified in DB)
 - [x] `tests/e2e/test_saml_login.py` (4 tests) — SAML button visible, redirect to IdP, SP metadata endpoint, full SAML login flow via mock SimpleSAMLphp
+- [x] `tests/e2e/test_oidc_user_delete.py` (2 tests) — issue #7 acceptance: admin Delete button removes user with all child row types; full repro — OIDC auto-create login via mock-oidc, then admin deletes the user through /admin/users, DB verified clean
 
 **Remaining E2E test suites:**
 

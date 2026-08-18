@@ -46,7 +46,7 @@ class Device(SQLModel, table=True):
     tx_bytes: int | None = Field(default=None, sa_column=Column(BigInteger))
     latest_handshake: datetime | None = None
 
-    user_id: UUID = Field(foreign_key="users.id", index=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
 
     inserted_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

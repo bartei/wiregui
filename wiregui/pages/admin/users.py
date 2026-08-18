@@ -10,10 +10,9 @@ from sqlmodel import func, select
 from wiregui.auth.passwords import hash_password
 from wiregui.db import async_session
 from wiregui.models.device import Device
-from wiregui.models.rule import Rule
 from wiregui.models.user import User
 from wiregui.pages.layout import layout
-from wiregui.services.events import on_device_deleted
+from wiregui.services.users import delete_user_and_cleanup
 from wiregui.utils.time import utcnow
 
 
@@ -152,24 +151,12 @@ async def users_page():
             if not user:
                 return
 
-            # Delete user's devices (and fire WG events)
-            devices_result = await session.execute(
-                select(Device).where(Device.user_id == user.id)
-            )
-            for device in devices_result.scalars().all():
-                await session.delete(device)
-                await on_device_deleted(device)
-
-            # Delete user's rules
-            await session.execute(
-                select(Rule).where(Rule.user_id == user.id)
-            )
-            rules_result = await session.execute(select(Rule).where(Rule.user_id == user.id))
-            for rule in rules_result.scalars().all():
-                await session.delete(rule)
-
-            await session.delete(user)
-            await session.commit()
+            try:
+                await delete_user_and_cleanup(session, user)
+            except Exception as e:
+                logger.error("Failed to delete user {}: {}", user.email, e)
+                ui.notify(f"Failed to delete user {user.email}", type="negative")
+                return
 
         logger.info("Admin deleted user: {}", user.email)
         ui.notify(f"User {user.email} deleted")

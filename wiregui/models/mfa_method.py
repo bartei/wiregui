@@ -15,7 +15,7 @@ class MFAMethod(SQLModel, table=True):
     payload: dict = Field(default_factory=dict, sa_column=Column(JSON))  # encrypted at app level
     last_used_at: datetime | None = None
 
-    user_id: UUID = Field(foreign_key="users.id", index=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
 
     inserted_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

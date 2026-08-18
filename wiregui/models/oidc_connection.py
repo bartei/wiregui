@@ -15,7 +15,7 @@ class OIDCConnection(SQLModel, table=True):
     refresh_response: dict | None = Field(default=None, sa_column=Column(JSON))
     refreshed_at: datetime | None = None
 
-    user_id: UUID = Field(foreign_key="users.id", index=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
 
     inserted_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

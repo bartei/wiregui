@@ -20,7 +20,7 @@ class Rule(SQLModel, table=True):
     # priority number than the "accept" rules that should be matched before it.
     priority: int = Field(default=100, index=True)
 
-    user_id: UUID | None = Field(default=None, foreign_key="users.id", index=True)
+    user_id: UUID | None = Field(default=None, foreign_key="users.id", index=True, ondelete="CASCADE")
 
     inserted_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

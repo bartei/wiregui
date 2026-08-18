@@ -20,6 +20,7 @@ from wiregui.models.oidc_connection import OIDCConnection
 from wiregui.models.rule import Rule
 from wiregui.models.user import User
 from wiregui.pages.layout import layout
+from wiregui.services.users import delete_user_and_cleanup
 from wiregui.utils.time import utcnow
 
 
@@ -346,13 +347,9 @@ async def account_page():
                                 ui.notify("Email doesn't match", type="negative")
                                 return
                             async with async_session() as session:
-                                for model in (Device, Rule, MFAMethod, ApiToken, OIDCConnection):
-                                    for item in (await session.execute(select(model).where(model.user_id == user_id))).scalars().all():
-                                        await session.delete(item)
                                 u = await session.get(User, user_id)
                                 if u:
-                                    await session.delete(u)
-                                await session.commit()
+                                    await delete_user_and_cleanup(session, u)
                             dlg.close()
                             app.storage.user.clear()
                             ui.navigate.to("/login")

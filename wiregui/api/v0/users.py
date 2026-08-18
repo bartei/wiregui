@@ -8,6 +8,7 @@ from wiregui.api.deps import get_db, require_admin
 from wiregui.auth.passwords import hash_password
 from wiregui.models.user import User
 from wiregui.schemas.user import UserCreate, UserRead, UserUpdate
+from wiregui.services.users import delete_user_and_cleanup
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -82,5 +83,4 @@ async def delete_user(
     user = await session.get(User, user_id)
     if not user:
         raise HTTPException(404, "User not found")
-    await session.delete(user)
-    await session.commit()
+    await delete_user_and_cleanup(session, user)

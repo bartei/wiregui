@@ -27,11 +27,11 @@ class User(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow)
 
     # Relationships
-    devices: list["Device"] = Relationship(back_populates="user")
-    oidc_connections: list["OIDCConnection"] = Relationship(back_populates="user")
-    api_tokens: list["ApiToken"] = Relationship(back_populates="user")
-    mfa_methods: list["MFAMethod"] = Relationship(back_populates="user")
-    rules: list["Rule"] = Relationship(back_populates="user")
+    devices: list["Device"] = Relationship(back_populates="user", passive_deletes="all")
+    oidc_connections: list["OIDCConnection"] = Relationship(back_populates="user", passive_deletes="all")
+    api_tokens: list["ApiToken"] = Relationship(back_populates="user", passive_deletes="all")
+    mfa_methods: list["MFAMethod"] = Relationship(back_populates="user", passive_deletes="all")
+    rules: list["Rule"] = Relationship(back_populates="user", passive_deletes="all")
 
 
 # Avoid circular imports — these are resolved at runtime by SQLModel
