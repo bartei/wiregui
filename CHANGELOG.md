@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.0.0-rc.3 (2026-08-18)
+
+### Bug Fixes
+
+- **deps**: Upgrade locked dependencies to clear security advisories
+  ([`b963345`](https://github.com/bartei/wiregui/commit/b963345c6df53d1ac195cc6792d31151fb209d87))
+
+### Documentation
+
+- **scim**: Add SCIM provisioning design and todo
+  ([`75232da`](https://github.com/bartei/wiregui/commit/75232da640e799fa9a80516aa35816868d123554))
+
+
 ## v1.0.0-rc.2 (2026-08-18)
 
 ### Bug Fixes
