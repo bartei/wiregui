@@ -95,10 +95,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    outputs:
-      new_tag: ${{ steps.version.outputs.new_tag }}
-      new_version: ${{ steps.version.outputs.new_version }}
-      skip: ${{ steps.version.outputs.skip }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -111,93 +107,35 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "noreply@github.com"
 
-      - name: Determine version bump
-        id: version
-        shell: bash
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv and dependencies
         run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "latest_tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+          pip install uv
+          uv sync --group dev
 
-          CURRENT="${LATEST_TAG#v}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-
-          COMMITS=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
-
-          BUMP="none"
-          while IFS= read -r msg; do
-            case "$msg" in
-              *"BREAKING CHANGE"*|*"!:"*)
-                BUMP="major"
-                break
-                ;;
-              feat:*|feat\(*)
-                [ "$BUMP" != "major" ] && BUMP="minor"
-                ;;
-              fix:*|fix\(*|perf:*|perf\(*|refactor:*|refactor\(*)
-                [ "$BUMP" = "none" ] && BUMP="patch"
-                ;;
-            esac
-          done <<< "$COMMITS"
-
-          if [ "$BUMP" = "none" ]; then
-            echo "No version-relevant commits since ${LATEST_TAG}, skipping release"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          case "$BUMP" in
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH + 1)) ;;
-          esac
-
-          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "new_tag=v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "bump=${BUMP}" >> "$GITHUB_OUTPUT"
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-          echo "Version bump: ${BUMP} -> v${NEW_VERSION}"
-
-      - name: Generate changelog
-        id: changelog
-        if: steps.version.outputs.skip != 'true'
-        shell: bash
-        run: |
-          LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
-          NEW_TAG="${{ steps.version.outputs.new_tag }}"
-
-          BODY="## ${NEW_TAG}"$'\n\n'
-
-          for type_label in "feat:Features" "fix:Bug Fixes" "refactor:Refactoring" "perf:Performance" "docs:Documentation" "chore:Maintenance"; do
-            prefix="${type_label%%:*}"
-            label="${type_label#*:}"
-            MATCHES=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%s" 2>/dev/null | grep -E "^${prefix}[:(]" || true)
-            if [ -n "$MATCHES" ]; then
-              BODY="${BODY}### ${label}"$'\n\n'
-              while IFS= read -r line; do
-                CLEAN=$(echo "$line" | sed -E "s/^${prefix}(\([^)]*\))?:\s*//")
-                BODY="${BODY}- ${CLEAN}"$'\n'
-              done <<< "$MATCHES"
-              BODY="${BODY}"$'\n'
-            fi
-          done
-
-          echo "${BODY}" > /tmp/changelog.md
-          echo "Generated changelog for ${NEW_TAG}"
-
-      - name: Create tag and release
-        if: steps.version.outputs.skip != 'true'
+      - name: Semantic release
+        id: semrel
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NEW_TAG="${{ steps.version.outputs.new_tag }}"
+          VERSION=$(uv run semantic-release version --print 2>/dev/null || echo "")
+          if [ -z "$VERSION" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No release needed"
+          else
+            uv run semantic-release version
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "new_version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Released v${VERSION}"
+          fi
 
-          git tag -a "${NEW_TAG}" -m "Release ${NEW_TAG}"
-          git push origin "${NEW_TAG}"
-
-          gh release create "${NEW_TAG}" \
-            --title "${NEW_TAG}" \
-            --notes-file /tmp/changelog.md
+    outputs:
+      new_version: ${{ steps.semrel.outputs.new_version }}
+      skip: ${{ steps.semrel.outputs.skip }}
 
   docker:
     needs: release
@@ -208,6 +146,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -219,7 +161,7 @@ jobs:
       - name: Build and push image
         run: |
           VERSION="${{ needs.release.outputs.new_version }}"
-          TAG="${{ needs.release.outputs.new_tag }}"
+          TAG="v${VERSION}"
           IMAGE="ghcr.io/${{ github.repository_owner }}/wiregui"
 
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
