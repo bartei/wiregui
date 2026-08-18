@@ -1,6 +1,6 @@
 [project]
 name = "wiregui"
-version = "0.1.0"
+version = "1.0.0-rc.2"
 description = "WireGuard VPN management platform — Python/NiceGUI rewrite of Wirezone"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
