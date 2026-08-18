@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.0.0-rc.4 (2026-08-18)
+
+### Bug Fixes
+
+- **ci**: Use semantic-release for stable releases on main
+  ([`774e916`](https://github.com/bartei/wiregui/commit/774e916e48bafb3119eec4165394e494de534ccf))
+
+
 ## v1.0.0-rc.3 (2026-08-18)
 
 ### Bug Fixes
