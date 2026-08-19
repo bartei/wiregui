@@ -1,9 +1,10 @@
 """WireGuard interface management via subprocess calls to `wg` and `ip`."""
 
 import asyncio
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from ipaddress import ip_network
+from ipaddress import IPv4Network, IPv6Network, ip_network
 
 from loguru import logger
 
@@ -39,35 +40,63 @@ async def _run(args: list[str], input_data: str | None = None) -> str:
     return stdout.decode().strip()
 
 
+def _server_addresses(settings) -> list[str]:
+    """The server's own address in each WG network — the first host of each prefix."""
+    v4 = IPv4Network(settings.wg_ipv4_network, strict=False)
+    v6 = IPv6Network(settings.wg_ipv6_network, strict=False)
+    return [
+        f"{next(v4.hosts())}/{v4.prefixlen}",
+        f"{next(v6.hosts())}/{v6.prefixlen}",
+    ]
+
+
+async def _interface_addresses(iface: str) -> set[str]:
+    """Addresses currently configured on the interface, as `addr/prefixlen` strings."""
+    try:
+        out = await _run(["ip", "-json", "address", "show", "dev", iface])
+    except RuntimeError:
+        return set()
+    return {
+        f"{a['local']}/{a['prefixlen']}"
+        for entry in json.loads(out or "[]")
+        for a in entry.get("addr_info", [])
+    }
+
+
 async def ensure_interface(iface: str | None = None) -> None:
-    """Create WireGuard interface if it doesn't exist, assign server IPs and bring it up."""
+    """Ensure the interface exists, carries the server addresses and is up.
+
+    Re-asserts addresses on every call rather than only at creation: another daemon on
+    the host (dhcpcd, systemd-networkd, NetworkManager) or an operator can strip an
+    address from an existing interface, and a create-once check leaves that broken
+    until the link itself is deleted.
+    """
     settings = get_settings()
     iface = iface or settings.wg_interface
 
-    # Check if interface exists
+    created = False
     try:
         await _run(["ip", "link", "show", iface])
-        logger.debug("Interface {} already exists", iface)
-        return
     except RuntimeError:
-        pass
+        logger.info("Creating WireGuard interface {}", iface)
+        await _run(["ip", "link", "add", iface, "type", "wireguard"])
+        created = True
 
-    logger.info("Creating WireGuard interface {}", iface)
-    await _run(["ip", "link", "add", iface, "type", "wireguard"])
-
-    # Assign server IP (first host in each network)
-    from ipaddress import IPv4Network, IPv6Network
-
-    v4_net = IPv4Network(settings.wg_ipv4_network, strict=False)
-    v4_server = str(list(v4_net.hosts())[0])
-    await _run(["ip", "address", "add", f"{v4_server}/{v4_net.prefixlen}", "dev", iface])
-
-    v6_net = IPv6Network(settings.wg_ipv6_network, strict=False)
-    v6_server = str(list(v6_net.hosts())[0])
-    await _run(["ip", "address", "add", f"{v6_server}/{v6_net.prefixlen}", "dev", iface])
+    existing = set() if created else await _interface_addresses(iface)
+    addresses = _server_addresses(settings)
+    restored = False
+    for addr in addresses:
+        if not created and addr not in existing:
+            # WARNING: on an interface that already existed, a missing address means
+            # something external removed it.
+            logger.warning("Restoring missing address {} on {}", addr, iface)
+            restored = True
+        await _run(["ip", "address", "replace", addr, "dev", iface])
 
     await _run(["ip", "link", "set", iface, "up"])
-    logger.info("Interface {} is up with {} and {}", iface, v4_server, v6_server)
+    # DEBUG when nothing changed: this also runs periodically, not just at startup.
+    log = logger.info if created or restored else logger.debug
+    log("Interface {} is up with {}", iface, ", ".join(addresses))
 
 
 async def configure_interface(iface: str | None = None) -> None:

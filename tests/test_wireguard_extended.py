@@ -1,8 +1,13 @@
 """Tests for WireGuard service — ensure_interface, set_private_key, set_listen_port, configure_interface."""
 
+import json
+import time
 from unittest.mock import AsyncMock, patch, call
 
+from loguru import logger
+
 from wiregui.services.wireguard import (
+    _server_addresses,
     ensure_interface,
     set_private_key,
     set_listen_port,
@@ -14,40 +19,120 @@ from wiregui.services.wireguard import (
 )
 
 
+def _mock_wg_settings(mock_settings):
+    mock_settings.return_value.wg_interface = "wg-test"
+    mock_settings.return_value.wg_ipv4_network = "10.60.1.0/24"
+    mock_settings.return_value.wg_ipv6_network = "fd00::/106"
+
+
+def _addr_json(*addrs: str) -> str:
+    """Build `ip -json address show` output for the given addr/prefixlen strings."""
+    return json.dumps([{
+        "addr_info": [
+            {"local": a.split("/")[0], "prefixlen": int(a.split("/")[1])} for a in addrs
+        ],
+    }])
+
+
 # ========== ensure_interface ==========
 
 
+@patch("wiregui.services.wireguard.get_settings")
 @patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
-async def test_ensure_interface_already_exists(mock_run):
-    """If interface exists (ip link show succeeds), do nothing."""
-    mock_run.return_value = ""
-    await ensure_interface(iface="wg-test")
-    # Only called once for ip link show
-    mock_run.assert_awaited_once_with(["ip", "link", "show", "wg-test"])
-
-
-@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
-async def test_ensure_interface_creates_new(mock_run):
-    """If interface doesn't exist, create it, assign IPs, bring up."""
-    call_count = 0
+async def test_ensure_interface_creates_new(mock_run, mock_settings):
+    """If interface doesn't exist, create it, assign IPs (via replace), bring up."""
+    _mock_wg_settings(mock_settings)
 
     async def side_effect(args, input_data=None):
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1 and args == ["ip", "link", "show", "wg-test"]:
+        if args == ["ip", "link", "show", "wg-test"]:
             raise RuntimeError("Device not found")
         return ""
 
     mock_run.side_effect = side_effect
     await ensure_interface(iface="wg-test")
 
-    # Should have called: ip link show (fails), ip link add, ip addr add x2, ip link set up
-    assert mock_run.await_count == 5
+    # ip link show (fails), ip link add, ip addr replace x2, ip link set up
     calls = [c[0][0] for c in mock_run.call_args_list]
-    assert calls[1] == ["ip", "link", "add", "wg-test", "type", "wireguard"]
-    assert calls[2][0:3] == ["ip", "address", "add"]
-    assert calls[3][0:3] == ["ip", "address", "add"]
-    assert calls[4] == ["ip", "link", "set", "wg-test", "up"]
+    assert calls == [
+        ["ip", "link", "show", "wg-test"],
+        ["ip", "link", "add", "wg-test", "type", "wireguard"],
+        ["ip", "address", "replace", "10.60.1.1/24", "dev", "wg-test"],
+        ["ip", "address", "replace", "fd00::1/106", "dev", "wg-test"],
+        ["ip", "link", "set", "wg-test", "up"],
+    ]
+
+
+@patch("wiregui.services.wireguard.get_settings")
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_ensure_interface_existing_reasserts_addresses(mock_run, mock_settings):
+    """An existing, fully-addressed interface still gets its addresses re-asserted (no warning)."""
+    _mock_wg_settings(mock_settings)
+
+    async def side_effect(args, input_data=None):
+        if args[:3] == ["ip", "-json", "address"]:
+            return _addr_json("10.60.1.1/24", "fd00::1/106")
+        return ""
+
+    mock_run.side_effect = side_effect
+
+    warnings = []
+    sink_id = logger.add(lambda m: warnings.append(m), level="WARNING")
+    try:
+        await ensure_interface(iface="wg-test")
+    finally:
+        logger.remove(sink_id)
+
+    calls = [c[0][0] for c in mock_run.call_args_list]
+    assert ["ip", "address", "replace", "10.60.1.1/24", "dev", "wg-test"] in calls
+    assert ["ip", "address", "replace", "fd00::1/106", "dev", "wg-test"] in calls
+    assert ["ip", "link", "set", "wg-test", "up"] in calls
+    # No link creation, and no "restoring" warning when nothing drifted.
+    assert ["ip", "link", "add", "wg-test", "type", "wireguard"] not in calls
+    assert not warnings
+
+
+@patch("wiregui.services.wireguard.get_settings")
+@patch("wiregui.services.wireguard._run", new_callable=AsyncMock)
+async def test_ensure_interface_restores_removed_address(mock_run, mock_settings):
+    """Regression (2026-08-19 incident): a stripped address on an existing interface
+    is restored and logged as a WARNING — not silently skipped via early return."""
+    _mock_wg_settings(mock_settings)
+
+    async def side_effect(args, input_data=None):
+        if args[:3] == ["ip", "-json", "address"]:
+            # dhcpcd stripped the IPv4 address; only IPv6 remains.
+            return _addr_json("fd00::1/106")
+        return ""
+
+    mock_run.side_effect = side_effect
+
+    warnings = []
+    sink_id = logger.add(lambda m: warnings.append(m), level="WARNING")
+    try:
+        await ensure_interface(iface="wg-test")
+    finally:
+        logger.remove(sink_id)
+
+    calls = [c[0][0] for c in mock_run.call_args_list]
+    assert ["ip", "address", "replace", "10.60.1.1/24", "dev", "wg-test"] in calls
+    assert any("Restoring missing address 10.60.1.1/24" in str(m) for m in warnings)
+    # Only the missing address warns, not the one still present.
+    assert not any("fd00::1/106" in str(m) for m in warnings)
+
+
+# ========== _server_addresses ==========
+
+
+def test_server_addresses_first_host_without_materializing():
+    """Uses next(hosts()) — must be instant even for a huge IPv6 prefix (a /106 has
+    ~4.2M hosts; the old list(hosts())[0] took seconds and ~500 MB)."""
+    from types import SimpleNamespace
+
+    settings = SimpleNamespace(wg_ipv4_network="10.60.1.0/24", wg_ipv6_network="fd00::/106")
+    start = time.monotonic()
+    addrs = _server_addresses(settings)
+    assert time.monotonic() - start < 0.5
+    assert addrs == ["10.60.1.1/24", "fd00::1/106"]
 
 
 # ========== set_private_key ==========
