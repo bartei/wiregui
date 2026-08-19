@@ -6,6 +6,7 @@ import httpx
 from loguru import logger
 from sqlmodel import select
 
+from wiregui.config import get_settings
 from wiregui.db import async_session
 from wiregui.models.configuration import Configuration
 from wiregui.models.connectivity_check import ConnectivityCheck
@@ -31,6 +32,20 @@ async def connectivity_loop() -> None:
             raise
         except Exception as e:
             logger.error("Connectivity check failed: {}", e)
+
+        # Re-converge the WG interface so externally-caused drift (e.g. a host DHCP
+        # client stripping an address) self-heals within one interval instead of
+        # persisting until the next restart.
+        if get_settings().wg_enabled:
+            try:
+                from wiregui.services.wireguard import ensure_interface
+
+                await ensure_interface()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error("Interface convergence failed: {}", e)
+
         await asyncio.sleep(DEFAULT_INTERVAL)
 
 
