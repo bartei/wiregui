@@ -83,6 +83,8 @@ docker compose -f compose.prod.yml up -d
 
 The container runs migrations on startup, manages the WireGuard interface, and requires `NET_ADMIN` + `SYS_MODULE` capabilities. See `compose.prod.yml` for the full configuration including environment variables.
 
+> **Host networking caveat:** when running with `--network=host`, exclude the WireGuard interface from any host network manager (dhcpcd, systemd-networkd, NetworkManager) — otherwise it may claim the interface and strip its addresses. On NixOS: `networking.dhcpcd.denyInterfaces = [ "wg0" ];`. WireGUI re-asserts its addresses periodically and logs a warning when it has to restore one, but the host should not be fighting it in the first place.
+
 ### Environment variables
 
 All settings use the `WG_` prefix:
