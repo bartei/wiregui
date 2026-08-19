@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v1.1.0 (2026-08-19)
+
+### Bug Fixes
+
+- **wireguard**: Re-assert interface addresses on every startup
+  ([`a4e2d65`](https://github.com/bartei/wiregui/commit/a4e2d65a6b9806d56c5cf4e14bca6fa82fc3dd4b))
+
+### Documentation
+
+- **readme**: Exclude the WG interface from host network management
+  ([`7d9159e`](https://github.com/bartei/wiregui/commit/7d9159e35d0e0275419ade4786753ec3d796d215))
+
+### Features
+
+- **tasks**: Periodically re-converge the WG interface
+  ([`8651666`](https://github.com/bartei/wiregui/commit/8651666238511096d6ac3a2dd2aed600388ee108))
+
+
 ## v1.0.0 (2026-08-18)
 
 
