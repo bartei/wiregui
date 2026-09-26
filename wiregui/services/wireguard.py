@@ -3,7 +3,7 @@
 import asyncio
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from ipaddress import IPv4Network, IPv6Network, ip_network
 
 from loguru import logger
@@ -208,7 +208,7 @@ async def get_peers(iface: str | None = None) -> list[PeerInfo]:
         endpoint = parts[2] if parts[2] != "(none)" else None
         allowed_ips = parts[3].split(",") if parts[3] != "(none)" else []
         handshake_ts = int(parts[4]) if parts[4] != "0" else None
-        latest_handshake = datetime.utcfromtimestamp(handshake_ts) if handshake_ts else None
+        latest_handshake = datetime.fromtimestamp(handshake_ts, UTC) if handshake_ts else None
         rx_bytes = int(parts[5])
         tx_bytes = int(parts[6])
 

@@ -2,8 +2,12 @@ from datetime import UTC, datetime
 
 
 def utcnow() -> datetime:
-    """Return current UTC time as a naive datetime (for Postgres TIMESTAMP WITHOUT TIME ZONE)."""
-    return datetime.now(UTC).replace(tzinfo=None)
+    """Return current UTC time as a timezone-aware datetime.
+
+    SQLModel maps `datetime` fields to TIMESTAMP WITH TIME ZONE and rejects naive
+    values, so every datetime that reaches the database must carry an offset.
+    """
+    return datetime.now(UTC)
 
 
 def connection_status(latest_handshake: datetime | None) -> tuple[str, str]:
@@ -15,6 +19,8 @@ def connection_status(latest_handshake: datetime | None) -> tuple[str, str]:
     """
     if latest_handshake is None:
         return "red", "offline"
+    if latest_handshake.tzinfo is None:
+        latest_handshake = latest_handshake.replace(tzinfo=UTC)
     age = (utcnow() - latest_handshake).total_seconds()
     if age < 120:
         return "green", "online"
