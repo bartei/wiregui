@@ -1,0 +1,541 @@
+---
+const requirements = [
+  { item: 'Python 3.13+', detail: 'plus uv for dependency management' },
+  { item: 'PostgreSQL 15+', detail: 'local or remote; the source of truth' },
+  { item: 'Valkey / Redis', detail: 'sessions and cache' },
+  { item: 'wireguard-tools', detail: 'the wg CLI' },
+  { item: 'iproute2', detail: 'the ip CLI — creates and addresses wg0' },
+  { item: 'nftables', detail: 'the nft CLI — per-user chains and NAT' },
+  { item: 'CAP_NET_ADMIN', detail: 'required to manage the interface and firewall' },
+  { item: 'WireGuard kernel module', detail: 'in-tree since Linux 5.6' },
+];
+
+const troubleshooting = [
+  {
+    symptom: 'RuntimeError: Operation not permitted on ip link add',
+    cause: 'The service has no CAP_NET_ADMIN.',
+    fix: 'Check AmbientCapabilities in the unit; in an unprivileged LXC, confirm the host loaded the wireguard module.',
+  },
+  {
+    symptom: 'nftables is not available in Admin → Diagnostics',
+    cause: 'nft cannot talk to the kernel, usually a missing capability or nf_tables module.',
+    fix: 'Run nft list ruleset as the service user; modprobe nf_tables nft_masq on the host if it fails.',
+  },
+  {
+    symptom: 'Peers connect but reach nothing',
+    cause: 'IP forwarding is off, so packets die at the server.',
+    fix: 'Verify sysctl net.ipv4.ip_forward returns 1 inside the container or VM, not just on the host.',
+  },
+  {
+    symptom: 'Clients get a config but never handshake',
+    cause: 'WG_WG_ENDPOINT_HOST or the UDP port is wrong or blocked.',
+    fix: 'The endpoint must be the address clients can reach from outside, and the UDP port must be forwarded to this host.',
+  },
+  {
+    symptom: 'Addresses vanish from wg0',
+    cause: 'A host network manager claimed the interface.',
+    fix: 'Exclude wg0 from systemd-networkd, NetworkManager or dhcpcd.',
+  },
+];
+---
+
+<section id="bare-metal" class="py-20 sm:py-28">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl text-center">
+      <h2 class="text-3xl font-bold tracking-tight text-navy-950 sm:text-4xl">
+        Bare metal: VM or LXC
+      </h2>
+      <p class="mt-4 text-lg text-slate-600">
+        Docker is the recommended path, but nothing in WireGUI requires it. Here is the full
+        install on a plain VM or an LXC container.
+      </p>
+    </div>
+
+    <!-- What you are signing up for -->
+    <div class="mx-auto mt-12 max-w-5xl">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <p class="text-sm text-slate-700">
+          WireGUI is a Python application that shells out to <code class="rounded bg-white px-1.5 py-0.5 text-xs font-medium text-navy-800">ip</code>,
+          <code class="rounded bg-white px-1.5 py-0.5 text-xs font-medium text-navy-800">wg</code> and
+          <code class="rounded bg-white px-1.5 py-0.5 text-xs font-medium text-navy-800">nft</code>.
+          The container image adds no magic &mdash; it installs those three tools, runs
+          <code class="rounded bg-white px-1.5 py-0.5 text-xs font-medium text-navy-800">alembic upgrade head</code>, and starts
+          <code class="rounded bg-white px-1.5 py-0.5 text-xs font-medium text-navy-800">python -m wiregui.main</code> with
+          <code class="rounded bg-white px-1.5 py-0.5 text-xs font-medium text-navy-800">NET_ADMIN</code>.
+          A bare-metal install does exactly the same thing under systemd. What you give up is the
+          bundled PostgreSQL, Valkey and VictoriaMetrics &mdash; you provide those yourself.
+        </p>
+      </div>
+    </div>
+
+    <!-- Requirements -->
+    <div class="mx-auto mt-12 max-w-5xl">
+      <h3 class="text-2xl font-bold text-navy-950">Requirements</h3>
+      <div class="mt-6 grid gap-3 sm:grid-cols-2">
+        {requirements.map(({ item, detail }) => (
+          <div class="flex items-start gap-3 rounded-xl border border-slate-200 p-4">
+            <svg class="mt-0.5 h-5 w-5 flex-none text-navy-700" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+            <div>
+              <p class="font-semibold text-navy-950">{item}</p>
+              <p class="text-sm text-slate-600">{detail}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="flex items-center gap-3 text-2xl font-bold text-navy-950">
+        <span class="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-navy-950 text-sm font-bold text-white" aria-hidden="true">1</span>
+        System packages
+      </h3>
+
+      <div class="mt-6 grid gap-8 lg:grid-cols-2">
+        <div>
+          <h4 class="font-semibold text-navy-950">Debian / Ubuntu</h4>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>apt update
+apt install -y python3 git curl \
+    wireguard-tools iproute2 nftables \
+    postgresql valkey-server
+
+<span class="text-slate-500"># uv, installed system-wide</span>
+curl -LsSf https://astral.sh/uv/install.sh \
+    | env UV_INSTALL_DIR=/usr/local/bin sh</code></pre>
+          </div>
+          <p class="mt-2 text-sm text-slate-600">
+            On releases without a <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">valkey-server</code> package, use
+            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">redis-server</code> &mdash; the wire protocol is the same.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-semibold text-navy-950">Fedora / RHEL / Rocky</h4>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>dnf install -y python3 git curl \
+    wireguard-tools iproute nftables \
+    postgresql-server valkey
+
+postgresql-setup --initdb
+systemctl enable --now postgresql valkey
+
+curl -LsSf https://astral.sh/uv/install.sh \
+    | env UV_INSTALL_DIR=/usr/local/bin sh</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+        <p class="text-sm text-slate-600">
+          <strong class="text-navy-950">Python version.</strong> WireGUI needs 3.13+. If your distro ships something older,
+          you do not need a PPA &mdash; <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">uv</code> will fetch
+          the right interpreter itself with <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">uv python install 3.13</code>,
+          and <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">uv sync</code> will use it.
+        </p>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="flex items-center gap-3 text-2xl font-bold text-navy-950">
+        <span class="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-navy-950 text-sm font-bold text-white" aria-hidden="true">2</span>
+        Database and cache
+      </h3>
+      <p class="mt-2 text-slate-600">
+        Create the role and database WireGUI will own. Valkey needs no configuration for a
+        single-host install; it just has to be listening.
+      </p>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+        <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>sudo -u postgres psql -c "CREATE USER wiregui WITH PASSWORD 'choose-a-real-password';"
+sudo -u postgres psql -c "CREATE DATABASE wiregui OWNER wiregui;"
+
+systemctl enable --now postgresql valkey-server</code></pre>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="flex items-center gap-3 text-2xl font-bold text-navy-950">
+        <span class="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-navy-950 text-sm font-bold text-white" aria-hidden="true">3</span>
+        Install WireGUI
+      </h3>
+      <p class="mt-2 text-slate-600">
+        A dedicated system user owns the code and runs the service. It needs no login shell and no
+        home directory beyond the install path.
+      </p>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+        <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>useradd --system --home /opt/wiregui --shell /usr/sbin/nologin wiregui
+
+git clone https://github.com/bartei/wiregui.git /opt/wiregui
+chown -R wiregui:wiregui /opt/wiregui
+
+<span class="text-slate-500"># Build the virtualenv in /opt/wiregui/.venv</span>
+cd /opt/wiregui
+sudo -u wiregui uv sync --no-dev</code></pre>
+      </div>
+      <p class="mt-3 text-sm text-slate-600">
+        Dependencies install from prebuilt wheels on glibc x86-64 and arm64. On musl distributions
+        such as Alpine, <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">lxml</code> and
+        <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">xmlsec</code> (pulled in by SAML support) compile from source
+        &mdash; add <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">build-base libxml2-dev libxslt-dev xmlsec-dev pkgconfig</code> first.
+      </p>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="flex items-center gap-3 text-2xl font-bold text-navy-950">
+        <span class="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-navy-950 text-sm font-bold text-white" aria-hidden="true">4</span>
+        Configuration
+      </h3>
+      <p class="mt-2 text-slate-600">
+        Every setting is an environment variable with the <code class="rounded bg-slate-100 px-1.5 py-0.5 text-sm font-medium text-navy-700">WG_</code> prefix.
+        Put them in a file systemd reads, not in the shell history.
+      </p>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+        <div class="flex items-center gap-2 border-b border-white/10 px-4 py-2">
+          <span class="ml-1 text-xs text-slate-400">/etc/wiregui/wiregui.env</span>
+        </div>
+        <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>WG_DATABASE_URL=postgresql+asyncpg://wiregui:choose-a-real-password@localhost/wiregui
+WG_REDIS_URL=redis://localhost:6379/0
+
+<span class="text-slate-500"># openssl rand -hex 32 — rotating this invalidates sessions and</span>
+<span class="text-slate-500"># the encrypted secrets already stored in the database</span>
+WG_SECRET_KEY=replace-with-32-random-bytes
+
+<span class="text-slate-500"># WireGuard</span>
+WG_WG_ENABLED=true
+WG_WG_ENDPOINT_HOST=vpn.example.com
+WG_WG_ENDPOINT_PORT=51820
+WG_WG_IPV4_NETWORK=10.3.2.0/24
+WG_WG_IPV6_NETWORK=fd00::3:2:0/120
+
+<span class="text-slate-500"># Web</span>
+WG_HOST=0.0.0.0
+WG_PORT=13000
+WG_EXTERNAL_URL=https://vpn.example.com
+WG_ADMIN_EMAIL=admin@example.com
+
+<span class="text-slate-500"># systemd captures stderr into the journal already</span>
+WG_LOG_TO_FILE=false</code></pre>
+      </div>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-4">
+          <p class="text-sm text-slate-600">
+            <strong class="text-navy-950">Lock the file down.</strong> It holds the database password and the key that
+            encrypts stored secrets: <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">chmod 640</code>,
+            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">chown root:wiregui</code>.
+          </p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4">
+          <p class="text-sm text-slate-600">
+            <strong class="text-navy-950">Leave <code>WG_ADMIN_PASSWORD</code> unset.</strong> On first run WireGUI generates one
+            and writes it to the log. Set it only if you are provisioning automatically.
+          </p>
+        </div>
+      </div>
+      <p class="mt-4 text-sm text-slate-600">
+        The full variable list is in the <a href="#documentation" class="font-medium text-navy-700 underline underline-offset-2 hover:text-navy-900">configuration reference</a> below.
+      </p>
+    </div>
+
+    <!-- Step 5 -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="flex items-center gap-3 text-2xl font-bold text-navy-950">
+        <span class="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-navy-950 text-sm font-bold text-white" aria-hidden="true">5</span>
+        Kernel forwarding
+      </h3>
+      <p class="mt-2 text-slate-600">
+        A VPN server routes between the tunnel and everything else, so forwarding has to be on.
+        This is per network namespace: setting it on an LXC host does <em>not</em> set it inside the container.
+      </p>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+        <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code><span class="text-slate-500"># /etc/sysctl.d/99-wiregui.conf</span>
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+
+<span class="text-slate-500"># Apply now</span>
+sysctl --system</code></pre>
+      </div>
+    </div>
+
+    <!-- Step 6 -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="flex items-center gap-3 text-2xl font-bold text-navy-950">
+        <span class="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-navy-950 text-sm font-bold text-white" aria-hidden="true">6</span>
+        Migrations and first run
+      </h3>
+      <p class="mt-2 text-slate-600">
+        Alembic reads <code class="rounded bg-slate-100 px-1.5 py-0.5 text-sm font-medium text-navy-700">WG_DATABASE_URL</code> from the
+        same environment, so export the file before running it.
+      </p>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+        <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>cd /opt/wiregui
+set -a; . /etc/wiregui/wiregui.env; set +a
+
+sudo -u wiregui --preserve-env uv run alembic upgrade head</code></pre>
+      </div>
+      <p class="mt-3 text-sm text-slate-600">
+        Run this once before the first start, and again after every upgrade. The service itself does
+        not migrate &mdash; only the Docker image does that on boot.
+      </p>
+    </div>
+
+    <!-- Step 7 -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="flex items-center gap-3 text-2xl font-bold text-navy-950">
+        <span class="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-navy-950 text-sm font-bold text-white" aria-hidden="true">7</span>
+        systemd unit
+      </h3>
+      <p class="mt-2 text-slate-600">
+        WireGUI needs <code class="rounded bg-slate-100 px-1.5 py-0.5 text-sm font-medium text-navy-700">CAP_NET_ADMIN</code> and nothing else
+        privileged. Granting it as an ambient capability keeps the process off root.
+      </p>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+        <div class="flex items-center gap-2 border-b border-white/10 px-4 py-2">
+          <span class="ml-1 text-xs text-slate-400">/etc/systemd/system/wiregui.service</span>
+        </div>
+        <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>[Unit]
+Description=WireGUI
+After=network-online.target postgresql.service valkey-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wiregui
+Group=wiregui
+WorkingDirectory=/opt/wiregui
+EnvironmentFile=/etc/wiregui/wiregui.env
+ExecStart=/opt/wiregui/.venv/bin/python -m wiregui.main
+Restart=on-failure
+RestartSec=5
+
+<span class="text-slate-500"># Manage wg0 and the nftables ruleset without being root</span>
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=yes
+
+<span class="text-slate-500"># Hardening that does not interfere with networking.</span>
+<span class="text-slate-500"># NiceGUI keeps session storage in .nicegui/ under the working</span>
+<span class="text-slate-500"># directory, so that tree has to stay writable.</span>
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/opt/wiregui
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+      </div>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+        <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>systemctl daemon-reload
+systemctl enable --now wiregui
+
+<span class="text-slate-500"># The generated admin password appears here on first start</span>
+journalctl -u wiregui -f</code></pre>
+      </div>
+      <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <p class="text-sm text-amber-900">
+          <strong>Do not put wg0 under a host network manager.</strong> systemd-networkd, NetworkManager and dhcpcd
+          will happily claim an interface they did not create and strip its addresses. WireGUI restores
+          them periodically and logs a warning when it has to, but the fix is to exclude
+          <code class="rounded bg-white/60 px-1.5 py-0.5 text-xs font-medium">wg0</code> from the manager.
+        </p>
+      </div>
+    </div>
+
+    <!-- Step 8 -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="flex items-center gap-3 text-2xl font-bold text-navy-950">
+        <span class="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-navy-950 text-sm font-bold text-white" aria-hidden="true">8</span>
+        Verify
+      </h3>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+        <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code><span class="text-slate-500"># The interface exists and carries the tunnel addresses</span>
+ip addr show wg0
+
+<span class="text-slate-500"># The server key and listen port are set</span>
+wg show wg0
+
+<span class="text-slate-500"># WireGUI's own nftables table is present</span>
+nft list table inet wiregui
+
+<span class="text-slate-500"># The app answers</span>
+curl -s localhost:13000/api/health</code></pre>
+      </div>
+      <p class="mt-3 text-sm text-slate-600">
+        All four should succeed. <em>Admin &rarr; Diagnostics</em> shows the same state from the UI, including the
+        live ruleset. Put a reverse proxy in front for TLS &mdash; see
+        <a href="#documentation" class="font-medium text-navy-700 underline underline-offset-2 hover:text-navy-900">Deployment</a> for nginx and Caddy configs.
+      </p>
+    </div>
+
+    <!-- LXC -->
+    <div class="mx-auto mt-20 max-w-5xl">
+      <h3 class="text-2xl font-bold text-navy-950">LXC containers</h3>
+      <p class="mt-2 text-slate-600">
+        An LXC container shares the host kernel, so WireGuard works from inside it as long as the host
+        provides the module and the container is allowed to run its own network namespace. This is the
+        normal case on Proxmox: an <strong>unprivileged</strong> container is enough &mdash; it holds
+        <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">CAP_NET_ADMIN</code> within its own
+        namespace, which is all WireGUI touches.
+      </p>
+
+      <div class="mt-6 grid gap-8 lg:grid-cols-2">
+        <div>
+          <h4 class="font-semibold text-navy-950">On the host, once</h4>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code><span class="text-slate-500"># Containers cannot load modules — the host must</span>
+modprobe wireguard
+modprobe nf_tables
+modprobe nft_masq
+
+<span class="text-slate-500"># Make it survive a reboot</span>
+printf 'wireguard\nnf_tables\nnft_masq\n' \
+    &gt; /etc/modules-load.d/wiregui.conf</code></pre>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="font-semibold text-navy-950">Inside the container, check</h4>
+          <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+            <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code><span class="text-slate-500"># Can we create a WireGuard interface at all?</span>
+ip link add wgtest type wireguard \
+    &amp;&amp; ip link del wgtest &amp;&amp; echo OK
+
+<span class="text-slate-500"># Can we program nftables?</span>
+nft list ruleset &gt;/dev/null &amp;&amp; echo OK
+
+<span class="text-slate-500"># Is forwarding on in THIS namespace?</span>
+sysctl net.ipv4.ip_forward</code></pre>
+          </div>
+          <p class="mt-2 text-sm text-slate-600">
+            Run these before installing anything. If the first one fails, the host is missing the module
+            or the container profile blocks it, and no amount of WireGUI configuration will help.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+        <h4 class="font-semibold text-navy-950">Proxmox notes</h4>
+        <ul class="mt-2 space-y-2 text-sm text-slate-600">
+          <li class="flex gap-2">
+            <span class="text-navy-700" aria-hidden="true">&bull;</span>
+            <span>
+              Kernel WireGuard needs no <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">/dev/net/tun</code> passthrough.
+              Guides that add it are configuring the userspace <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">wireguard-go</code>
+              implementation, which WireGUI does not use.
+            </span>
+          </li>
+          <li class="flex gap-2">
+            <span class="text-navy-700" aria-hidden="true">&bull;</span>
+            <span>
+              If the container also runs PostgreSQL and Valkey, give it at least 2&nbsp;GB of RAM. WireGUI
+              itself is small; PostgreSQL is what wants headroom.
+            </span>
+          </li>
+          <li class="flex gap-2">
+            <span class="text-navy-700" aria-hidden="true">&bull;</span>
+            <span>
+              Forward the WireGuard UDP port from the host or router to the container's address, and set
+              <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-navy-800">WG_WG_ENDPOINT_HOST</code> to whatever clients
+              see from the internet &mdash; not the container's private IP.
+            </span>
+          </li>
+          <li class="flex gap-2">
+            <span class="text-navy-700" aria-hidden="true">&bull;</span>
+            <span>
+              A privileged container works too, but it buys nothing here and costs isolation.
+            </span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- VM -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="text-2xl font-bold text-navy-950">Virtual machines</h3>
+      <p class="mt-2 text-slate-600">
+        A VM has its own kernel, so there is no host to coordinate with: steps 1&ndash;8 above are the whole
+        install. Two things still bite people.
+      </p>
+      <div class="mt-6 grid gap-4 sm:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 p-5">
+          <p class="font-semibold text-navy-950">The hypervisor may filter</p>
+          <p class="mt-1 text-sm text-slate-600">
+            Routing traffic for the tunnel subnet means emitting packets with source addresses that are not
+            the VM's own. Anti-spoofing or MAC filtering on the virtual NIC will silently drop them &mdash; on
+            VMware disable MAC address changes and forged transmits, on Proxmox leave the firewall's
+            IP filter off for that interface.
+          </p>
+        </div>
+        <div class="rounded-xl border border-slate-200 p-5">
+          <p class="font-semibold text-navy-950">MTU</p>
+          <p class="mt-1 text-sm text-slate-600">
+            WireGUI hands clients an MTU of 1280, which is conservative enough for nested tunnels and most
+            overlay networks. If your path is clean you can raise it, but 1280 is the safe default and
+            rarely worth changing.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upgrades -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="text-2xl font-bold text-navy-950">Upgrading</h3>
+      <p class="mt-2 text-slate-600">
+        The database is the source of truth and the interface is rebuilt from it on every start, so an
+        upgrade is a pull, a sync, a migration and a restart.
+      </p>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+        <pre class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300"><code>cd /opt/wiregui
+sudo -u postgres pg_dump wiregui &gt; /var/backups/wiregui-$(date +%F).sql
+
+systemctl stop wiregui
+sudo -u wiregui git pull
+sudo -u wiregui uv sync --no-dev
+
+set -a; . /etc/wiregui/wiregui.env; set +a
+sudo -u wiregui --preserve-env uv run alembic upgrade head
+
+systemctl start wiregui</code></pre>
+      </div>
+      <p class="mt-3 text-sm text-slate-600">
+        Peers, rules and keys all live in PostgreSQL. That dump is the backup &mdash; there is no separate
+        WireGuard state to preserve.
+      </p>
+    </div>
+
+    <!-- Troubleshooting -->
+    <div class="mx-auto mt-16 max-w-5xl">
+      <h3 class="text-2xl font-bold text-navy-950">Troubleshooting</h3>
+      <div class="mt-6 overflow-hidden rounded-xl border border-slate-200">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="border-b border-slate-200 bg-slate-50">
+              <tr>
+                <th scope="col" class="px-4 py-3 font-semibold text-navy-950">Symptom</th>
+                <th scope="col" class="px-4 py-3 font-semibold text-navy-950">Cause</th>
+                <th scope="col" class="px-4 py-3 font-semibold text-navy-950">Fix</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {troubleshooting.map(({ symptom, cause, fix }) => (
+                <tr class="hover:bg-slate-50">
+                  <td class="px-4 py-3 align-top"><code class="text-xs text-navy-800">{symptom}</code></td>
+                  <td class="px-4 py-3 align-top text-slate-600">{cause}</td>
+                  <td class="px-4 py-3 align-top text-slate-600">{fix}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="mt-4 text-sm text-slate-600">
+        Still stuck? Open an issue on <a href="https://github.com/bartei/wiregui/issues" target="_blank" rel="noopener noreferrer" class="font-medium text-navy-700 underline underline-offset-2 hover:text-navy-900">GitHub</a>
+        with the output of the four verification commands above.
+      </p>
+    </div>
+  </div>
+</section>
