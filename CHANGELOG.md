@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v1.1.1 (2026-09-26)
+
+### Bug Fixes
+
+- Update dependencies
+  ([`13dfb5d`](https://github.com/bartei/wiregui/commit/13dfb5d0d5b2edccf073406f72da516b01a49379))
+
+- **db**: Store timezone-aware datetimes
+  ([`75598be`](https://github.com/bartei/wiregui/commit/75598be293ca44164807a315ff3dc05e3e82d5b1))
+
+### Chores
+
+- **deps**: Bump nanoid to 3.3.18 (CVE-2026-67213)
+  ([`3947c71`](https://github.com/bartei/wiregui/commit/3947c71e8221441e21630f68e2f9ba80a1b2b08f))
+
+### Documentation
+
+- **website**: Add bare-metal VM and LXC deployment guide
+  ([`99a80a5`](https://github.com/bartei/wiregui/commit/99a80a55976f22b6e9fafb6bbadb1a3d7dd2a6f4))
+
+
 ## v1.1.0 (2026-08-19)
 
 ### Bug Fixes
