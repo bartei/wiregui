@@ -42,12 +42,110 @@ async def test_register_providers_from_config(session, monkeypatch):
         assert call_kwargs["client_id"] == "cid"
 
 
-async def test_get_client_unknown_provider():
-    """get_client should raise for unregistered providers."""
+async def test_get_client_unknown_provider(session, monkeypatch):
+    """get_client should raise for providers that are not configured."""
     import pytest
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def mock_session():
+        yield session
+
+    monkeypatch.setattr("wiregui.auth.oidc.async_session", mock_session)
+
     from wiregui.auth.oidc import get_client
-    with pytest.raises(ValueError, match="not registered"):
-        get_client("nonexistent-provider-xyz")
+    with pytest.raises(ValueError, match="not configured"):
+        await get_client("nonexistent-provider-xyz")
+
+
+async def test_get_client_registers_provider_saved_after_startup(session, monkeypatch):
+    """A provider added after startup must be usable without restarting the process.
+
+    Regression: providers were only registered with authlib in startup(), so one created in
+    the admin UI stayed unusable — the login page offered the button but /auth/oidc/<id>
+    bounced straight back to /login — until the container was restarted.
+    """
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def mock_session():
+        yield session
+
+    monkeypatch.setattr("wiregui.auth.oidc.async_session", mock_session)
+
+    from wiregui.auth.oidc import get_client, oauth, register_providers, _registered
+    from wiregui.models.configuration import Configuration
+
+    # Startup happens first, with nothing configured yet.
+    await register_providers()
+    assert oauth.create_client("late-idp") is None
+
+    # Admin saves the provider while the process keeps running.
+    config = Configuration(openid_connect_providers=[
+        {
+            "id": "late-idp",
+            "label": "Late",
+            "scope": "openid email",
+            "client_id": "cid",
+            "client_secret": "cs",
+            "discovery_document_uri": "https://idp.test/.well-known/openid-configuration",
+        }
+    ])
+    session.add(config)
+    await session.flush()
+
+    try:
+        client = await get_client("late-idp")
+        assert client is not None
+        assert client.client_id == "cid"
+    finally:
+        from wiregui.auth.oidc import unregister_provider
+        unregister_provider("late-idp")
+
+
+async def test_get_client_rebuilds_client_when_credentials_change(session, monkeypatch):
+    """Editing a provider must replace the live client, not keep the booted credentials.
+
+    authlib's create_client() caches the instance it built, so re-registering alone leaves
+    the old client_id/secret in service.
+    """
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def mock_session():
+        yield session
+
+    monkeypatch.setattr("wiregui.auth.oidc.async_session", mock_session)
+
+    from wiregui.auth.oidc import get_client, unregister_provider
+    from wiregui.models.configuration import Configuration
+
+    provider = {
+        "id": "rotating-idp",
+        "label": "Rotating",
+        "scope": "openid email",
+        "client_id": "old-cid",
+        "client_secret": "old-cs",
+        "discovery_document_uri": "https://idp.test/.well-known/openid-configuration",
+    }
+    config = Configuration(openid_connect_providers=[provider])
+    session.add(config)
+    await session.flush()
+
+    try:
+        assert (await get_client("rotating-idp")).client_id == "old-cid"
+
+        # Same edit the admin UI performs: rewrite the JSON column in place.
+        config.openid_connect_providers = [{**provider, "client_id": "new-cid",
+                                            "client_secret": "new-cs"}]
+        session.add(config)
+        await session.flush()
+
+        client = await get_client("rotating-idp")
+        assert client.client_id == "new-cid"
+        assert client.client_secret == "new-cs"
+    finally:
+        unregister_provider("rotating-idp")
 
 
 # ========== WebAuthn options ==========

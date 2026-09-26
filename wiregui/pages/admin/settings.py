@@ -6,6 +6,7 @@ from loguru import logger
 from nicegui import app, ui
 from sqlmodel import select
 
+from wiregui.auth.oidc import unregister_provider
 from wiregui.config import get_settings
 from wiregui.db import async_session
 from wiregui.models.configuration import Configuration
@@ -120,6 +121,7 @@ async def settings_page():
             c.updated_at = utcnow()
             session.add(c)
             await session.commit()
+        unregister_provider(provider_id)
         logger.info("OIDC provider deleted: {}", provider_id)
         ui.notify("OIDC provider deleted")
         await refresh_oidc_table()

@@ -20,8 +20,9 @@ from sqlmodel import select
 async def oidc_redirect(provider_id: str, request: Request):
     """Redirect user to the OIDC provider's authorization endpoint."""
     try:
-        client = get_client(provider_id)
-    except ValueError:
+        client = await get_client(provider_id)
+    except ValueError as e:
+        logger.warning("OIDC redirect rejected for {}: {}", provider_id, e)
         return RedirectResponse(url="/login")
 
     settings = get_settings()
@@ -33,8 +34,9 @@ async def oidc_redirect(provider_id: str, request: Request):
 async def oidc_callback(provider_id: str, request: Request):
     """Handle the OIDC provider callback — exchange code for tokens and create session."""
     try:
-        client = get_client(provider_id)
-    except ValueError:
+        client = await get_client(provider_id)
+    except ValueError as e:
+        logger.warning("OIDC callback rejected for {}: {}", provider_id, e)
         return RedirectResponse(url="/login")
 
     try:
