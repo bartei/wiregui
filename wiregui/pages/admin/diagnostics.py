@@ -39,8 +39,20 @@ async def diagnostics_page():
     with ui.column().classes("w-full p-4"):
         ui.label("Diagnostics").classes("text-h5 q-mb-md")
 
-        # --- WireGuard Status ---
+        # --- Server ---
         with ui.card().classes("w-full"):
+            ui.label("Server").classes("text-subtitle1 text-bold")
+            ui.separator()
+
+            with ui.grid(columns=2).classes("w-full gap-2 q-pa-sm"):
+                ui.label("WireGUI Version:").classes("text-bold")
+                ui.label(settings.version)
+
+                ui.label("External URL:").classes("text-bold")
+                ui.label(settings.external_url)
+
+        # --- WireGuard Status ---
+        with ui.card().classes("w-full q-mt-md"):
             ui.label("WireGuard Interface").classes("text-subtitle1 text-bold")
             ui.separator()
 

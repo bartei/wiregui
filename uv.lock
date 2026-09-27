@@ -2428,7 +2428,7 @@ wheels = [
 
 [[package]]
 name = "wiregui"
-version = "1.1.0"
+version = "1.1.1"
 source = { virtual = "." }
 dependencies = [
     { name = "aiosmtplib" },

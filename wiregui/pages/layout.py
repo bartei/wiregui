@@ -5,6 +5,7 @@ from uuid import UUID
 from loguru import logger
 from nicegui import app, ui
 
+from wiregui.config import get_settings
 from wiregui.db import async_session
 from wiregui.models.user import User
 from wiregui.pages.style import apply_style
@@ -97,3 +98,9 @@ def layout(title: str = "WireGUI"):
             ui.item("Firewall Rules", on_click=lambda: ui.navigate.to("/admin/rules")).classes("cursor-pointer")
             ui.item("Settings", on_click=lambda: ui.navigate.to("/admin/settings")).classes("cursor-pointer")
             ui.item("Diagnostics", on_click=lambda: ui.navigate.to("/admin/diagnostics")).classes("cursor-pointer")
+
+        # Pin the running version to the bottom of the drawer — the quickest way
+        # to tell what a given deployment is actually running.
+        ui.space()
+        ui.separator().classes("w-full")
+        ui.label(f"v{get_settings().version}").classes("text-caption text-grey q-pa-sm")

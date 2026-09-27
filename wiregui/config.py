@@ -1,6 +1,19 @@
+import tomllib
 from functools import lru_cache
+from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _project_version() -> str:
+    """Read the version from pyproject.toml — the file semantic-release bumps."""
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    try:
+        with pyproject.open("rb") as f:
+            return tomllib.load(f)["project"]["version"]
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        return "unknown"
 
 
 class Settings(BaseSettings):
@@ -51,6 +64,10 @@ class Settings(BaseSettings):
 
     # Logging
     log_to_file: bool = False  # write timestamped log file to logs/ directory
+
+    # Version — baked into the container image at build time (WG_VERSION);
+    # outside the container it falls back to pyproject.toml.
+    version: str = Field(default_factory=_project_version)
 
     # App
     host: str = "0.0.0.0"
