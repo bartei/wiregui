@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.2.0-rc.2 (2026-10-29)
+
+### Bug Fixes
+
+- **deps**: Bump authlib to 1.9.1 and certifi to 2026.10.23
+  ([`2119b3f`](https://github.com/bartei/wiregui/commit/2119b3f251f3db541d1993d88fd3453fcecce36a))
+
+### Continuous Integration
+
+- Run the full test suite before dev rc releases
+  ([`d195536`](https://github.com/bartei/wiregui/commit/d19553614727cbe6625edb12d9a709a99f1dfba4))
+
+
 ## v1.2.0-rc.1 (2026-10-29)
 
 ### Bug Fixes
