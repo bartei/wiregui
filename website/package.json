@@ -13,16 +13,19 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",
-    "astro": "^7.1.6",
+    "astro": "^7.3.3",
     "tailwindcss": "^4.2.2"
   },
   "overrides": {
-    "vite": ">=7.3.5",
+    "vite": ">=8.1.6",
     "esbuild": ">=0.28.1",
-    "devalue": ">=5.8.1",
-    "js-yaml": "^4.3.0",
+    "devalue": ">=5.9.3",
+    "js-yaml": ">=4.3.2",
     "postcss": "^8.5.18",
-    "svgo": "^4.0.2",
-    "sharp": "^0.35.0"
+    "svgo": ">=4.1.0",
+    "sharp": ">=0.35.5",
+    "zod": ">=4.6.6",
+    "smol-toml": ">=1.9.0",
+    "source-map-js": ">=1.2.2"
   }
 }
