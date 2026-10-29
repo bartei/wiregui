@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v1.2.0-rc.1 (2026-10-29)
+
+### Bug Fixes
+
+- **deps**: Clear Dependabot alerts in Python and website dependencies
+  ([`b38e86f`](https://github.com/bartei/wiregui/commit/b38e86f274d7b8422cbffd5812c10011454514bb))
+
+### Continuous Integration
+
+- Bump actions off the deprecated Node 20 runtime
+  ([`190bf2d`](https://github.com/bartei/wiregui/commit/190bf2db0d7555a6ccee80c162e722f47eee47e1))
+
+### Features
+
+- **ui**: Show the running version in the sidebar and diagnostics
+  ([`f1c5eb9`](https://github.com/bartei/wiregui/commit/f1c5eb984097c7c9fd1a3db57af471e44cc7e6ec))
+
+
 ## v1.1.1 (2026-09-26)
 
 ### Bug Fixes
