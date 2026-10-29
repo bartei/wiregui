@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-10-29)
+
+### Continuous Integration
+
+- Run the full test suite before dev rc releases
+  ([`d195536`](https://github.com/bartei/wiregui/commit/d19553614727cbe6625edb12d9a709a99f1dfba4))
+
+
 ## v1.2.0-rc.1 (2026-10-29)
 
 ### Bug Fixes
